@@ -22,7 +22,7 @@ apscheduler==3.10.4
 # Utils
 httpx==0.26.0
 aiofiles==23.2.1
-loguru==0.7.2
+loguru==0.7.3
 croniter==2.0.1
 psutil==5.9.8
 requests==2.31.0
