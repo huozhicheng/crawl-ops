@@ -12,10 +12,7 @@ class TestUserService:
         from app.services.user_service import user_service
 
         user = user_service.create(
-            db,
-            username="testuser",
-            password="testpass123",
-            email="test@example.com"
+            db, username="testuser", password="testpass123", email="test@example.com"
         )
 
         assert user.id is not None
@@ -100,21 +97,28 @@ class TestTaskService:
 
         task = task_service.create(
             db,
+            user_id=sample_project.created_by,
             name="新任务",
             project_id=sample_project.id,
             schedule_type="manual",
-            command="python run.py"
+            command="python run.py",
         )
 
         assert task.id is not None
         assert task.name == "新任务"
         assert task.project_id == sample_project.id
 
-    def test_execute_task(self, db, sample_task):
+    def test_execute_task(self, db, sample_task, monkeypatch):
         """测试执行任务"""
         from app.services.task_service import task_service
 
-        execution = task_service.execute(db, sample_task)
+        class FakeRedis:
+            def lpush(self, *_args):
+                return 1
+
+        monkeypatch.setattr("redis.from_url", lambda *_args, **_kwargs: FakeRedis())
+
+        execution = task_service.run(db, sample_task)
 
         assert execution.id is not None
         assert execution.task_id == sample_task.id

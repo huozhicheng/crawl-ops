@@ -1,8 +1,9 @@
-from typing import Optional, Tuple
-from datetime import datetime
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
 import random
+from datetime import datetime
+from typing import Optional, Tuple
+
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
 
 from app.models import Proxy
 
@@ -22,7 +23,7 @@ class ProxyService:
         page_size: int = 20,
         protocol: Optional[str] = None,
         status: Optional[int] = None,
-        min_score: Optional[int] = None
+        min_score: Optional[int] = None,
     ) -> Tuple[list, int]:
         """获取代理列表"""
         query = db.query(Proxy)
@@ -35,20 +36,16 @@ class ProxyService:
             query = query.filter(Proxy.score >= min_score)
 
         total = query.count()
-        items = query.order_by(Proxy.score.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        items = (
+            query.order_by(Proxy.score.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        )
 
         return items, total
 
     @staticmethod
-    def get_available(
-        db: Session,
-        protocol: Optional[str] = None,
-        count: int = 1
-    ) -> list:
+    def get_available(db: Session, protocol: Optional[str] = None, count: int = 1) -> list:
         """获取可用代理"""
-        query = db.query(Proxy).filter(
-            and_(Proxy.status == 1, Proxy.score >= 30)
-        )
+        query = db.query(Proxy).filter(and_(Proxy.status == 1, Proxy.score >= 30))
 
         if protocol:
             query = query.filter(Proxy.protocol == protocol)
@@ -79,9 +76,9 @@ class ProxyService:
                 if len(parts) >= 2:
                     ip, port = parts[0], int(parts[1])
                     # 检查是否存在
-                    exists = db.query(Proxy).filter(
-                        and_(Proxy.ip == ip, Proxy.port == port)
-                    ).first()
+                    exists = (
+                        db.query(Proxy).filter(and_(Proxy.ip == ip, Proxy.port == port)).first()
+                    )
                     if not exists:
                         proxy = Proxy(ip=ip, port=port, protocol=protocol, score=50, status=1)
                         db.add(proxy)
@@ -159,7 +156,7 @@ class ProxyService:
                 if response.status_code == 200:
                     return {
                         "valid": True,
-                        "response_time": int((end - start).total_seconds() * 1000)
+                        "response_time": int((end - start).total_seconds() * 1000),
                     }
         except:
             pass
@@ -184,9 +181,7 @@ class ProxyService:
     @staticmethod
     def count_available(db: Session) -> int:
         """统计可用代理数量"""
-        return db.query(Proxy).filter(
-            and_(Proxy.status == 1, Proxy.score >= 30)
-        ).count()
+        return db.query(Proxy).filter(and_(Proxy.status == 1, Proxy.score >= 30)).count()
 
 
 proxy_service = ProxyService()

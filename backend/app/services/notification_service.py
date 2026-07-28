@@ -10,16 +10,17 @@
 """
 import json
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
-from loguru import logger
+from typing import Any, Dict, Optional
 
 import httpx
+from loguru import logger
 
 
 class NotificationType(str, Enum):
     """通知渠道类型"""
+
     FEISHU = "feishu"
     DINGTALK = "dingtalk"
     WECOM = "wecom"
@@ -28,6 +29,7 @@ class NotificationType(str, Enum):
 @dataclass
 class NotificationResult:
     """通知发送结果"""
+
     success: bool
     message: str
     raw_response: Optional[Dict[str, Any]] = None
@@ -55,9 +57,7 @@ class BaseNotifier(ABC):
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
-                    self.webhook_url,
-                    json=payload,
-                    headers={"Content-Type": "application/json"}
+                    self.webhook_url, json=payload, headers={"Content-Type": "application/json"}
                 )
 
                 result = response.json()
@@ -65,25 +65,14 @@ class BaseNotifier(ABC):
                 # 检查各平台的成功标识
                 if self._is_success(result):
                     logger.info(f"[{self.type.value}] 通知发送成功: {title}")
-                    return NotificationResult(
-                        success=True,
-                        message="发送成功",
-                        raw_response=result
-                    )
+                    return NotificationResult(success=True, message="发送成功", raw_response=result)
                 else:
                     error_msg = self._get_error_message(result)
                     logger.warning(f"[{self.type.value}] 通知发送失败: {error_msg}")
-                    return NotificationResult(
-                        success=False,
-                        message=error_msg,
-                        raw_response=result
-                    )
+                    return NotificationResult(success=False, message=error_msg, raw_response=result)
         except Exception as e:
             logger.error(f"[{self.type.value}] 通知发送异常: {e}")
-            return NotificationResult(
-                success=False,
-                message=str(e)
-            )
+            return NotificationResult(success=False, message=str(e))
 
     @abstractmethod
     def _is_success(self, response: Dict[str, Any]) -> bool:
@@ -110,27 +99,19 @@ class FeishuNotifier(BaseNotifier):
             "msg_type": "interactive",
             "card": {
                 "header": {
-                    "title": {
-                        "tag": "plain_text",
-                        "content": title
-                    },
-                    "template": kwargs.get("color", "blue")
+                    "title": {"tag": "plain_text", "content": title},
+                    "template": kwargs.get("color", "blue"),
                 },
-                "elements": [
-                    {
-                        "tag": "markdown",
-                        "content": content
-                    }
-                ]
-            }
+                "elements": [{"tag": "markdown", "content": content}],
+            },
         }
 
         # 处理签名
         if self.secret:
-            import time
-            import hmac
-            import hashlib
             import base64
+            import hashlib
+            import hmac
+            import time
 
             timestamp = int(time.time())
             # 官方文档逻辑：string_to_sign = timestamp + "\n" + secret
@@ -138,9 +119,7 @@ class FeishuNotifier(BaseNotifier):
 
             # 使用 string_to_sign 作为 key，对空字符串进行 hmac-sha256
             hmac_code = hmac.new(
-                string_to_sign.encode("utf-8"),
-                "".encode("utf-8"),
-                digestmod=hashlib.sha256
+                string_to_sign.encode("utf-8"), "".encode("utf-8"), digestmod=hashlib.sha256
             ).digest()
             sign = base64.b64encode(hmac_code).decode("utf-8")
 
@@ -168,13 +147,8 @@ class DingTalkNotifier(BaseNotifier):
     def build_payload(self, title: str, content: str, **kwargs) -> Dict[str, Any]:
         return {
             "msgtype": "markdown",
-            "markdown": {
-                "title": title,
-                "text": f"## {title}\n\n{content}"
-            },
-            "at": {
-                "isAtAll": kwargs.get("at_all", False)
-            }
+            "markdown": {"title": title, "text": f"## {title}\n\n{content}"},
+            "at": {"isAtAll": kwargs.get("at_all", False)},
         }
 
     def _is_success(self, response: Dict[str, Any]) -> bool:
@@ -194,12 +168,7 @@ class WeComNotifier(BaseNotifier):
     type = NotificationType.WECOM
 
     def build_payload(self, title: str, content: str, **kwargs) -> Dict[str, Any]:
-        return {
-            "msgtype": "markdown",
-            "markdown": {
-                "content": f"## {title}\n\n{content}"
-            }
-        }
+        return {"msgtype": "markdown", "markdown": {"content": f"## {title}\n\n{content}"}}
 
     def _is_success(self, response: Dict[str, Any]) -> bool:
         return response.get("errcode") == 0
@@ -212,7 +181,9 @@ class NotificationService:
     """通知服务"""
 
     @staticmethod
-    def get_notifier(notify_type: str, webhook_url: str, secret: Optional[str] = None) -> Optional[BaseNotifier]:
+    def get_notifier(
+        notify_type: str, webhook_url: str, secret: Optional[str] = None
+    ) -> Optional[BaseNotifier]:
         """根据类型获取通知器实例"""
         notifiers = {
             NotificationType.FEISHU.value: FeishuNotifier,
@@ -232,15 +203,12 @@ class NotificationService:
         secret: Optional[str] = None,
         title: str = "",
         content: str = "",
-        **kwargs
+        **kwargs,
     ) -> NotificationResult:
         """发送通知"""
         notifier = NotificationService.get_notifier(notify_type, webhook_url, secret)
         if not notifier:
-            return NotificationResult(
-                success=False,
-                message=f"不支持的通知类型: {notify_type}"
-            )
+            return NotificationResult(success=False, message=f"不支持的通知类型: {notify_type}")
 
         return await notifier.send(title, content, **kwargs)
 
@@ -251,7 +219,7 @@ class NotificationService:
         secret: Optional[str] = None,
         task_name: str = "",
         status: str = "",
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> NotificationResult:
         """发送任务告警通知"""
         title = f"⚠️ 任务告警: {task_name}"

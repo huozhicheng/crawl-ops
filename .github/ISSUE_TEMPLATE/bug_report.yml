@@ -1,0 +1,45 @@
+name: 缺陷报告
+description: 提交可复现的问题，帮助我们定位和修复。
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: 感谢反馈。请勿在此处填写密钥、令牌或其他敏感数据。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 请简要说明实际发生的情况。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 请提供能够稳定复现的最小步骤。
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 请填写 CrawlOps 版本、部署方式、操作系统和浏览器（如适用）。
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志或截图（可选）
+      description: 提交前请移除账号、密码、令牌、域名等敏感信息。

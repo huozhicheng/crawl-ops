@@ -3,23 +3,26 @@
 
 提供通知渠道配置CRUD和测试发送功能。
 """
-from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 import json
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models import NotificationConfig
-from app.services.notification_service import notification_service, NotificationType
+from app.services.notification_service import NotificationType, notification_service
 
 router = APIRouter()
 
 
 # ===== 请求/响应模型 =====
 
+
 class NotificationConfigCreate(BaseModel):
     """创建通知配置"""
+
     name: str
     type: str  # feishu / dingtalk / wecom
     webhook_url: str
@@ -29,6 +32,7 @@ class NotificationConfigCreate(BaseModel):
 
 class NotificationConfigUpdate(BaseModel):
     """更新通知配置"""
+
     name: Optional[str] = None
     webhook_url: Optional[str] = None
     secret: Optional[str] = None
@@ -38,6 +42,7 @@ class NotificationConfigUpdate(BaseModel):
 
 class NotificationTestRequest(BaseModel):
     """测试通知请求"""
+
     type: str
     webhook_url: str
     secret: Optional[str] = None
@@ -46,6 +51,7 @@ class NotificationTestRequest(BaseModel):
 
 
 # ===== 数据库操作 =====
+
 
 def get_notification_configs(db: Session) -> List[dict]:
     """获取所有通知配置"""
@@ -79,21 +85,14 @@ def create_notification_config(
     notify_type: str,
     webhook_url: str,
     secret: Optional[str] = None,
-    is_default: bool = False
+    is_default: bool = False,
 ) -> NotificationConfig:
     """创建通知配置"""
 
-    config_json = json.dumps({
-        "webhook_url": webhook_url,
-        "secret": secret
-    })
+    config_json = json.dumps({"webhook_url": webhook_url, "secret": secret})
 
     config = NotificationConfig(
-        name=name,
-        type=notify_type,
-        config=config_json,
-        is_default=1 if is_default else 0,
-        status=1
+        name=name, type=notify_type, config=config_json, is_default=1 if is_default else 0, status=1
     )
     db.add(config)
     db.commit()
@@ -113,9 +112,7 @@ def delete_notification_config(db: Session, config_id: int) -> bool:
 
 
 def update_notification_config(
-    db: Session,
-    config_id: int,
-    data: NotificationConfigUpdate
+    db: Session, config_id: int, data: NotificationConfigUpdate
 ) -> Optional[NotificationConfig]:
     """更新通知配置"""
 
@@ -152,6 +149,7 @@ def update_notification_config(
 
 # ===== API端点 =====
 
+
 @router.get("")
 async def get_configs(db: Session = Depends(get_db)):
     """获取所有通知配置"""
@@ -165,10 +163,7 @@ async def create_config(data: NotificationConfigCreate, db: Session = Depends(ge
     # 验证类型
     valid_types = [t.value for t in NotificationType]
     if data.type not in valid_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"不支持的通知类型，支持: {', '.join(valid_types)}"
-        )
+        raise HTTPException(status_code=400, detail=f"不支持的通知类型，支持: {', '.join(valid_types)}")
 
     config = create_notification_config(
         db,
@@ -176,7 +171,7 @@ async def create_config(data: NotificationConfigCreate, db: Session = Depends(ge
         notify_type=data.type,
         webhook_url=data.webhook_url,
         secret=data.secret,
-        is_default=data.is_default
+        is_default=data.is_default,
     )
 
     return {"message": "创建成功", "id": config.id}
@@ -194,9 +189,7 @@ async def delete_config(config_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{config_id}")
 async def update_config(
-    config_id: int,
-    data: NotificationConfigUpdate,
-    db: Session = Depends(get_db)
+    config_id: int, data: NotificationConfigUpdate, db: Session = Depends(get_db)
 ):
     """更新通知配置"""
     config = update_notification_config(db, config_id, data)
@@ -212,17 +205,14 @@ async def test_notification(data: NotificationTestRequest):
     # 验证类型
     valid_types = [t.value for t in NotificationType]
     if data.type not in valid_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"不支持的通知类型，支持: {', '.join(valid_types)}"
-        )
+        raise HTTPException(status_code=400, detail=f"不支持的通知类型，支持: {', '.join(valid_types)}")
 
     result = await notification_service.send_notification(
         notify_type=data.type,
         webhook_url=data.webhook_url,
         secret=data.secret,
         title=data.title,
-        content=data.content
+        content=data.content,
     )
 
     if result.success:

@@ -2,8 +2,8 @@
 import { ref, computed, h, watch, onMounted } from 'vue'
 import {
   NModal, NCard, NDataTable, NButton, NSpace, NInput, NBreadcrumb,
-  NBreadcrumbItem, NUpload, useMessage, useDialog, NIcon, NPopconfirm,
-  NTag, NCode, NSpin, NEmpty, NInputGroup, NInputGroupLabel
+  NBreadcrumbItem, NUpload, useMessage, NIcon, NPopconfirm,
+  NTag, NCode, NSpin, NEmpty, NInputGroup
 } from 'naive-ui'
 import {
   FolderOutlined, FileOutlined, DownloadOutlined, DeleteOutlined,
@@ -32,7 +32,6 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
-const dialog = useDialog()
 
 const loading = ref(false)
 const files = ref<FileItem[]>([])

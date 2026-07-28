@@ -4,11 +4,18 @@
 提供测试用的数据库会话和fixtures。
 """
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import BigInteger, create_engine
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
+
+
+@compiles(BigInteger, "sqlite")
+def compile_big_integer_for_sqlite(_type, _compiler, **_kwargs):
+    """让 SQLite 将 BigInteger 主键建为可自增的 INTEGER。"""
+    return "INTEGER"
 
 
 # 使用内存数据库进行测试
@@ -37,14 +44,14 @@ def db():
 @pytest.fixture
 def admin_user(db):
     """创建管理员用户"""
-    from app.models import User
     from app.core.security import get_password_hash
+    from app.models import User
 
     user = User(
         username="admin",
         password_hash=get_password_hash("test-admin-password"),
         email="admin@example.com",
-        status=1
+        status=1,
     )
     db.add(user)
     db.commit()
@@ -63,7 +70,7 @@ def sample_project(db, admin_user):
         description="测试用项目",
         type="python",
         source_type="upload",
-        created_by=admin_user.id
+        created_by=admin_user.id,
     )
     db.add(project)
     db.commit()
@@ -81,7 +88,7 @@ def sample_task(db, sample_project):
         project_id=sample_project.id,
         description="测试用任务",
         schedule_type="manual",
-        command="python main.py"
+        command="python main.py",
     )
     db.add(task)
     db.commit()

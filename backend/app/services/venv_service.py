@@ -3,11 +3,13 @@ import shutil
 import subprocess
 import sys
 from typing import List, Optional, Tuple
-from sqlalchemy.orm import Session
-from loguru import logger
 
-from app.models import Venv
+from loguru import logger
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.models import Venv
+
 
 class VenvService:
     """虚拟环境服务"""
@@ -18,10 +20,7 @@ class VenvService:
 
     @staticmethod
     def get_list(
-        db: Session,
-        page: int = 1,
-        page_size: int = 20,
-        keyword: Optional[str] = None
+        db: Session, page: int = 1, page_size: int = 20, keyword: Optional[str] = None
     ) -> Tuple[list, int]:
         query = db.query(Venv).filter(Venv.status == 1)
         if keyword:
@@ -50,7 +49,7 @@ class VenvService:
                 [sys.executable, "-m", "venv", venv_path],
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
             )
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to create venv: {e.stderr}")
@@ -60,9 +59,9 @@ class VenvService:
         venv = Venv(
             name=name,
             path=venv_path,
-            python_version=sys.version.split()[0], # 记录基础Python版本
+            python_version=sys.version.split()[0],  # 记录基础Python版本
             description=description,
-            status=1
+            status=1,
         )
         db.add(venv)
         db.commit()
@@ -98,15 +97,12 @@ class VenvService:
 
         pip_path = os.path.join(venv.path, "bin", "pip")
         if not os.path.exists(pip_path):
-             raise RuntimeError(f"pip not found at {pip_path}")
+            raise RuntimeError(f"pip not found at {pip_path}")
 
         try:
             logger.info(f"Installing {package_name} in {venv.name}")
             subprocess.run(
-                [pip_path, "install", package_name],
-                check=True,
-                capture_output=True,
-                text=True
+                [pip_path, "install", package_name], check=True, capture_output=True, text=True
             )
             return True
         except subprocess.CalledProcessError as e:
@@ -138,12 +134,7 @@ class VenvService:
         if not os.path.exists(pip_path):
             raise RuntimeError(f"pip not found at {pip_path}")
 
-        result = {
-            'total': len(packages),
-            'success': 0,
-            'failed': 0,
-            'details': []
-        }
+        result = {"total": len(packages), "success": 0, "failed": 0, "details": []}
 
         for package in packages:
             try:
@@ -153,39 +144,35 @@ class VenvService:
                     check=True,
                     capture_output=True,
                     text=True,
-                    timeout=300  # 5分钟超时
+                    timeout=300,  # 5分钟超时
                 )
-                result['success'] += 1
-                result['details'].append({
-                    'package': package,
-                    'status': 'success',
-                    'message': 'Installed successfully'
-                })
+                result["success"] += 1
+                result["details"].append(
+                    {"package": package, "status": "success", "message": "Installed successfully"}
+                )
                 logger.info(f"✓ {package} installed successfully")
             except subprocess.TimeoutExpired:
-                result['failed'] += 1
-                result['details'].append({
-                    'package': package,
-                    'status': 'failed',
-                    'message': 'Installation timeout (5 minutes)'
-                })
+                result["failed"] += 1
+                result["details"].append(
+                    {
+                        "package": package,
+                        "status": "failed",
+                        "message": "Installation timeout (5 minutes)",
+                    }
+                )
                 logger.error(f"✗ {package} installation timeout")
             except subprocess.CalledProcessError as e:
-                result['failed'] += 1
+                result["failed"] += 1
                 error_msg = e.stderr if e.stderr else str(e)
-                result['details'].append({
-                    'package': package,
-                    'status': 'failed',
-                    'message': error_msg
-                })
+                result["details"].append(
+                    {"package": package, "status": "failed", "message": error_msg}
+                )
                 logger.error(f"✗ {package} installation failed: {error_msg}")
             except Exception as e:
-                result['failed'] += 1
-                result['details'].append({
-                    'package': package,
-                    'status': 'failed',
-                    'message': str(e)
-                })
+                result["failed"] += 1
+                result["details"].append(
+                    {"package": package, "status": "failed", "message": str(e)}
+                )
                 logger.error(f"✗ {package} installation error: {e}")
 
         return result
@@ -199,25 +186,23 @@ class VenvService:
 
         pip_path = os.path.join(venv.path, "bin", "pip")
         if not os.path.exists(pip_path):
-             raise RuntimeError(f"pip not found at {pip_path}")
+            raise RuntimeError(f"pip not found at {pip_path}")
 
         try:
             # 使用 pip list --format=json
             cmd = [pip_path, "list", "--format=json"]
-            result = subprocess.run(
-                cmd,
-                check=True,
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
             import json
+
             return json.loads(result.stdout)
         except Exception as e:
             logger.error(f"List packages failed: {e}")
             return []
 
     @staticmethod
-    async def install_packages_background(db_session_factory, venv_id: int, packages: List[str]) -> None:
+    async def install_packages_background(
+        db_session_factory, venv_id: int, packages: List[str]
+    ) -> None:
         """后台异步安装包（不阻塞 API）
 
         Args:
@@ -258,9 +243,11 @@ class VenvService:
                 try:
                     logger.info(f"[后台] Installing {package} in {venv.name}")
                     proc = await asyncio.create_subprocess_exec(
-                        pip_path, "install", package,
+                        pip_path,
+                        "install",
+                        package,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                        stderr=asyncio.subprocess.PIPE,
                     )
 
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
@@ -303,5 +290,6 @@ class VenvService:
                 pass
         finally:
             db.close()
+
 
 venv_service = VenvService()

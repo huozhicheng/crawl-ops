@@ -4,11 +4,12 @@
 提供节点管理、心跳处理、状态监控功能。
 """
 import secrets
-from typing import Optional, Tuple, List
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from typing import List, Optional, Tuple
+
 from loguru import logger
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
 
 from app.core.redis_client import publish_stop_signals_batch
 from app.models import Node, TaskExecution
@@ -35,10 +36,7 @@ class NodeService:
 
     @staticmethod
     def get_list(
-        db: Session,
-        page: int = 1,
-        page_size: int = 20,
-        status: Optional[str] = None
+        db: Session, page: int = 1, page_size: int = 20, status: Optional[str] = None
     ) -> Tuple[List[Node], int]:
         """获取节点列表"""
         query = db.query(Node)
@@ -59,14 +57,7 @@ class NodeService:
         # 生成唯一Token
         token = secrets.token_urlsafe(32)
 
-        node = Node(
-            name=name,
-            host=host,
-            port=port,
-            token=token,
-            status="offline",
-            **kwargs
-        )
+        node = Node(name=name, host=host, port=port, token=token, status="offline", **kwargs)
         db.add(node)
         db.commit()
         db.refresh(node)
@@ -99,7 +90,7 @@ class NodeService:
         cpu_usage: Optional[float] = None,
         memory_usage: Optional[float] = None,
         disk_usage: Optional[float] = None,
-        os_type: Optional[str] = None
+        os_type: Optional[str] = None,
     ) -> Node:
         """
         处理节点心跳
@@ -136,13 +127,17 @@ class NodeService:
         timeout_threshold = datetime.now() - timedelta(seconds=NodeService.HEARTBEAT_TIMEOUT)
 
         # 查找超时的在线节点
-        offline_nodes = db.query(Node).filter(
-            and_(
-                Node.status == "online",
-                Node.deleted == 0,
-                Node.last_heartbeat < timeout_threshold
+        offline_nodes = (
+            db.query(Node)
+            .filter(
+                and_(
+                    Node.status == "online",
+                    Node.deleted == 0,
+                    Node.last_heartbeat < timeout_threshold,
+                )
             )
-        ).all()
+            .all()
+        )
 
         if not offline_nodes:
             return 0
@@ -157,10 +152,11 @@ class NodeService:
             logger.warning(f"节点离线: {node.name}")
 
         # 修复 #6: 使用 IN 查询一次获取所有关联的 running 任务（避免 N+1）
-        running_executions = db.query(TaskExecution).filter(
-            TaskExecution.node_id.in_(offline_node_ids),
-            TaskExecution.status == "running"
-        ).all()
+        running_executions = (
+            db.query(TaskExecution)
+            .filter(TaskExecution.node_id.in_(offline_node_ids), TaskExecution.status == "running")
+            .all()
+        )
 
         # 处理关联任务
         failed_execution_ids = NodeService._fail_executions_by_node_offline(
@@ -178,9 +174,7 @@ class NodeService:
 
     @staticmethod
     def _fail_executions_by_node_offline(
-        db: Session,
-        executions: list,
-        node_name_map: dict
+        db: Session, executions: list, node_name_map: dict
     ) -> List[int]:
         """
         将执行记录标记为失败（节点离线导致）

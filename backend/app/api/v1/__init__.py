@@ -1,6 +1,23 @@
 from fastapi import APIRouter, Depends
 
-from app.api.v1 import auth, users, projects, tasks, executions, nodes, proxies, dashboard, notifications, roles, statistics, audits, venvs, dependencies, files, system
+from app.api.v1 import (
+    audits,
+    auth,
+    dashboard,
+    dependencies,
+    executions,
+    files,
+    nodes,
+    notifications,
+    projects,
+    proxies,
+    roles,
+    statistics,
+    system,
+    tasks,
+    users,
+    venvs,
+)
 
 api_router = APIRouter()
 

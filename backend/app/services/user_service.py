@@ -1,9 +1,10 @@
 from typing import Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from app.models import User
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.core.security import get_password_hash, verify_password
+from app.models import User
 
 
 class UserService:
@@ -25,7 +26,7 @@ class UserService:
         page: int = 1,
         page_size: int = 20,
         keyword: Optional[str] = None,
-        status: Optional[int] = None
+        status: Optional[int] = None,
     ) -> Tuple[list, int]:
         """获取用户列表"""
         query = db.query(User)
@@ -44,10 +45,7 @@ class UserService:
     def create(db: Session, username: str, password: str, email: Optional[str] = None) -> User:
         """创建用户"""
         user = User(
-            username=username,
-            password_hash=get_password_hash(password),
-            email=email,
-            status=1
+            username=username, password_hash=get_password_hash(password), email=email, status=1
         )
         db.add(user)
         db.commit()

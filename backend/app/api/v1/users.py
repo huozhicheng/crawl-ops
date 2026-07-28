@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas import UserResponse, UserListResponse, UserCreate, UserUpdate
+from app.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 from app.services import user_service
 
 
@@ -22,7 +23,7 @@ async def get_users(
     page_size: int = Query(20, ge=1, le=100),
     keyword: Optional[str] = None,
     status: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取用户列表"""
     items, total = user_service.get_list(db, page, page_size, keyword, status)
@@ -30,7 +31,7 @@ async def get_users(
         items=[UserResponse.model_validate(u) for u in items],
         total=total,
         page=page,
-        page_size=page_size
+        page_size=page_size,
     )
 
 
@@ -77,11 +78,7 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{user_id}/password")
-async def change_password(
-    user_id: int,
-    data: ChangePasswordRequest,
-    db: Session = Depends(get_db)
-):
+async def change_password(user_id: int, data: ChangePasswordRequest, db: Session = Depends(get_db)):
     """修改密码"""
     user = user_service.get_by_id(db, user_id)
     if not user:

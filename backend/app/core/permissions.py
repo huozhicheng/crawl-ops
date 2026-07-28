@@ -9,15 +9,17 @@
 from enum import Enum
 from functools import wraps
 from typing import List, Optional, Set
-from fastapi import HTTPException, Depends
+
+from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import User, Role, UserRole
+from app.models import Role, User, UserRole
 
 
 class RoleCode(str, Enum):
     """角色代码枚举"""
+
     SUPER_ADMIN = "super_admin"  # 超级管理员
     PROJECT_ADMIN = "project_admin"  # 项目管理员
     USER = "user"  # 普通用户
@@ -25,6 +27,7 @@ class RoleCode(str, Enum):
 
 class Permission(str, Enum):
     """权限枚举"""
+
     # 用户管理
     USER_VIEW = "user:view"
     USER_CREATE = "user:create"
@@ -62,7 +65,6 @@ class Permission(str, Enum):
 # 角色-权限映射
 ROLE_PERMISSIONS: dict[str, Set[str]] = {
     RoleCode.SUPER_ADMIN.value: {p.value for p in Permission},  # 超级管理员拥有所有权限
-
     RoleCode.PROJECT_ADMIN.value: {
         Permission.USER_VIEW.value,
         Permission.PROJECT_VIEW.value,
@@ -77,7 +79,6 @@ ROLE_PERMISSIONS: dict[str, Set[str]] = {
         Permission.PROXY_VIEW.value,
         Permission.PROXY_CREATE.value,
     },
-
     RoleCode.USER.value: {
         Permission.PROJECT_VIEW.value,
         Permission.TASK_VIEW.value,
@@ -177,6 +178,7 @@ def require_permission(permission: Permission):
     """
     权限检查装饰器（简化版）
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -186,13 +188,12 @@ def require_permission(permission: Permission):
 
             if current_user and db:
                 if not check_permission(current_user, permission.value, db):
-                    raise HTTPException(
-                        status_code=403,
-                        detail=f"权限不足: 需要 {permission.value}"
-                    )
+                    raise HTTPException(status_code=403, detail=f"权限不足: 需要 {permission.value}")
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -200,6 +201,7 @@ def require_role(role: RoleCode):
     """
     角色检查装饰器
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -208,11 +210,10 @@ def require_role(role: RoleCode):
 
             if current_user and db:
                 if not check_role(current_user, role.value, db):
-                    raise HTTPException(
-                        status_code=403,
-                        detail=f"权限不足: 需要 {role.value} 角色"
-                    )
+                    raise HTTPException(status_code=403, detail=f"权限不足: 需要 {role.value} 角色")
 
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator

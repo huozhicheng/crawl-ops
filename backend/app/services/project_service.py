@@ -1,12 +1,13 @@
-from typing import Optional, Tuple
-from sqlalchemy.orm import Session
-
-from app.models import Project
-from app.core.config import settings
 import os
 import shutil
 import subprocess
+from typing import Optional, Tuple
+
 from loguru import logger
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.models import Project
 
 
 class ProjectService:
@@ -29,7 +30,7 @@ class ProjectService:
         page_size: int = 20,
         keyword: Optional[str] = None,
         project_type: Optional[str] = None,
-        status: Optional[int] = None
+        status: Optional[int] = None,
     ) -> Tuple[list, int]:
         """获取项目列表"""
         query = db.query(Project)
@@ -42,7 +43,9 @@ class ProjectService:
             query = query.filter(Project.status == status)
 
         total = query.count()
-        items = query.order_by(Project.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        items = (
+            query.order_by(Project.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        )
 
         return items, total
 
@@ -100,7 +103,7 @@ class ProjectService:
                         cwd=project_path,
                         check=True,
                         capture_output=True,
-                        text=True
+                        text=True,
                     )
                 else:
                     # Git clone
@@ -115,7 +118,7 @@ class ProjectService:
                         cwd=project_path,
                         check=True,
                         capture_output=True,
-                        text=True
+                        text=True,
                     )
                 return True
 

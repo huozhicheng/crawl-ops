@@ -3,22 +3,25 @@
 
 提供角色CRUD和用户角色分配功能。
 """
-from typing import Optional, List
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import Role, UserRole
 from app.core.permissions import ROLE_PERMISSIONS, RoleCode
+from app.models import Role, UserRole
 
 router = APIRouter()
 
 
 # ===== 请求/响应模型 =====
 
+
 class RoleCreate(BaseModel):
     """创建角色请求"""
+
     name: str
     code: str
     description: Optional[str] = None
@@ -26,23 +29,26 @@ class RoleCreate(BaseModel):
 
 class RoleUpdate(BaseModel):
     """更新角色请求"""
+
     name: Optional[str] = None
     description: Optional[str] = None
 
 
 class AssignRoleRequest(BaseModel):
     """分配角色请求"""
+
     user_id: int
     role_ids: List[int]
 
 
 # ===== API端点 =====
 
+
 @router.get("")
 async def get_roles(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取角色列表"""
     query = db.query(Role)
@@ -62,7 +68,7 @@ async def get_roles(
         ],
         "total": total,
         "page": page,
-        "page_size": page_size
+        "page_size": page_size,
     }
 
 
@@ -74,11 +80,7 @@ async def create_role(data: RoleCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="角色代码已存在")
 
-    role = Role(
-        name=data.name,
-        code=data.code,
-        description=data.description
-    )
+    role = Role(name=data.name, code=data.code, description=data.description)
     db.add(role)
     db.commit()
     db.refresh(role)
@@ -180,9 +182,4 @@ async def get_all_permissions():
     """获取所有权限列表"""
     from app.core.permissions import Permission
 
-    return {
-        "permissions": [
-            {"value": p.value, "label": p.value}
-            for p in Permission
-        ]
-    }
+    return {"permissions": [{"value": p.value, "label": p.value} for p in Permission]}

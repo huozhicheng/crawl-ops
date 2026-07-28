@@ -1,9 +1,9 @@
-import os
 import logging
-import subprocess
-import zipfile
-import tempfile
+import os
 import shutil
+import subprocess
+import tempfile
+import zipfile
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class ProjectSyncer:
                 return False
 
             # 保存到临时文件
-            temp_file = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+            temp_file = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
             try:
                 for chunk in resp.iter_content(chunk_size=8192):
                     temp_file.write(chunk)
@@ -96,14 +96,14 @@ class ProjectSyncer:
                             os.remove(item_path)
 
                 # 解压 zip 文件
-                with zipfile.ZipFile(temp_file.name, 'r') as zip_ref:
+                with zipfile.ZipFile(temp_file.name, "r") as zip_ref:
                     # zip 内容结构是 project_code/... 所以需要提取顶层目录
                     for member in zip_ref.namelist():
                         # 跳过目录
-                        if member.endswith('/'):
+                        if member.endswith("/"):
                             continue
                         # 去掉顶层目录前缀
-                        parts = member.split('/', 1)
+                        parts = member.split("/", 1)
                         if len(parts) > 1:
                             relative_path = parts[1]
                         else:
@@ -114,7 +114,7 @@ class ProjectSyncer:
                         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
                         # 提取文件
-                        with zip_ref.open(member) as src, open(dest_path, 'wb') as dst:
+                        with zip_ref.open(member) as src, open(dest_path, "wb") as dst:
                             dst.write(src.read())
 
                 logger.info(f"Successfully downloaded and extracted project {project_code}")

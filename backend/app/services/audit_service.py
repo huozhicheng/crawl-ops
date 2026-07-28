@@ -1,9 +1,11 @@
 import json
 from typing import Optional, Tuple
-from sqlalchemy.orm import Session
+
 from loguru import logger
+from sqlalchemy.orm import Session
 
 from app.models import AuditLog
+
 
 class AuditService:
     """审计日志服务"""
@@ -17,7 +19,7 @@ class AuditService:
         resource_type: str,
         resource_id: Optional[int],
         detail: Optional[dict] = None,
-        ip: str = "unknown"
+        ip: str = "unknown",
     ) -> AuditLog:
         """记录审计日志"""
         try:
@@ -28,7 +30,7 @@ class AuditService:
                 resource_type=resource_type,
                 resource_id=resource_id,
                 detail=json.dumps(detail, ensure_ascii=False) if detail else None,
-                ip=ip
+                ip=ip,
             )
             db.add(log_entry)
             db.commit()
@@ -49,7 +51,7 @@ class AuditService:
         action: Optional[str] = None,
         resource_type: Optional[str] = None,
         start_time: Optional[str] = None,
-        end_time: Optional[str] = None
+        end_time: Optional[str] = None,
     ) -> Tuple[list, int]:
         """查询审计日志"""
         query = db.query(AuditLog)
@@ -59,14 +61,17 @@ class AuditService:
         if action:
             query = query.filter(AuditLog.action == action)
         if resource_type:
-             query = query.filter(AuditLog.resource_type == resource_type)
+            query = query.filter(AuditLog.resource_type == resource_type)
         if start_time:
             query = query.filter(AuditLog.created_at >= start_time)
         if end_time:
             query = query.filter(AuditLog.created_at <= end_time)
 
         total = query.count()
-        items = query.order_by(AuditLog.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        items = (
+            query.order_by(AuditLog.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        )
         return items, total
+
 
 audit_service = AuditService()

@@ -2,13 +2,15 @@
 审计日志模型
 """
 from datetime import datetime
-from sqlalchemy import Column, BigInteger, String, Text, DateTime
+
+from sqlalchemy import BigInteger, Column, DateTime, String, Text
 
 from app.core.database import Base
 
 
 class AuditLog(Base):
     """审计日志表"""
+
     __tablename__ = "audit_logs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)

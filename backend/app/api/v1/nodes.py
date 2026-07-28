@@ -5,12 +5,13 @@
 """
 import secrets
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 
-from app.core.database import get_db
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.core.database import get_db
 from app.services.node_service import node_service
 
 router = APIRouter()
@@ -19,8 +20,10 @@ worker_router = APIRouter()
 
 # ===== 请求/响应模型 =====
 
+
 class NodeCreate(BaseModel):
     """创建节点请求"""
+
     name: str
     host: str
     port: int = 8080
@@ -28,6 +31,7 @@ class NodeCreate(BaseModel):
 
 class NodeUpdate(BaseModel):
     """更新节点请求"""
+
     name: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
@@ -35,6 +39,7 @@ class NodeUpdate(BaseModel):
 
 class HeartbeatRequest(BaseModel):
     """心跳请求"""
+
     cpu_usage: Optional[float] = None
     memory_usage: Optional[float] = None
     disk_usage: Optional[float] = None
@@ -45,6 +50,7 @@ class HeartbeatRequest(BaseModel):
 
 class NodeRegisterRequest(BaseModel):
     """节点注册请求"""
+
     name: str
     host: str
     port: int = 8080
@@ -53,12 +59,13 @@ class NodeRegisterRequest(BaseModel):
 
 # ===== API端点 =====
 
+
 @router.get("")
 async def get_nodes(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取节点列表"""
     items, total = node_service.get_list(db, page, page_size, status)
@@ -80,7 +87,7 @@ async def get_nodes(
         ],
         "total": total,
         "page": page,
-        "page_size": page_size
+        "page_size": page_size,
     }
 
 
@@ -88,11 +95,7 @@ async def get_nodes(
 async def create_node(data: NodeCreate, db: Session = Depends(get_db)):
     """添加节点"""
     node = node_service.create(db, **data.model_dump())
-    return {
-        "message": "添加成功",
-        "id": node.id,
-        "token": node.token  # 返回Token供节点使用
-    }
+    return {"message": "添加成功", "id": node.id, "token": node.token}  # 返回Token供节点使用
 
 
 @router.get("/{node_id}")
@@ -147,7 +150,7 @@ async def delete_node(node_id: int, db: Session = Depends(get_db)):
 async def node_heartbeat(
     data: HeartbeatRequest,
     x_node_token: str = Header(..., alias="X-Node-Token"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     节点心跳
@@ -162,11 +165,12 @@ async def node_heartbeat(
 
     # 更新节点状态
     node_service.heartbeat(
-        db, node,
+        db,
+        node,
         cpu_usage=data.cpu_usage,
         memory_usage=data.memory_usage,
         disk_usage=data.disk_usage,
-        os_type=data.os_type
+        os_type=data.os_type,
     )
 
     # 存储历史记录
@@ -176,7 +180,7 @@ async def node_heartbeat(
         memory_usage=data.memory_usage,
         disk_usage=data.disk_usage,
         network_sent=data.network_sent,
-        network_recv=data.network_recv
+        network_recv=data.network_recv,
     )
     db.add(metric)
     db.commit()
@@ -202,18 +206,10 @@ async def node_register(
         raise HTTPException(status_code=401, detail="无效的 Worker 注册令牌")
 
     node = node_service.create(
-        db,
-        name=data.name,
-        host=data.host,
-        port=data.port,
-        os_type=data.os_type
+        db, name=data.name, host=data.host, port=data.port, os_type=data.os_type
     )
 
-    return {
-        "message": "注册成功",
-        "node_id": node.id,
-        "token": node.token
-    }
+    return {"message": "注册成功", "node_id": node.id, "token": node.token}
 
 
 @router.post("/{node_id}/ping")
@@ -232,5 +228,5 @@ async def ping_node(node_id: int, db: Session = Depends(get_db)):
     return {
         "node_id": node.id,
         "status": node.status,
-        "last_heartbeat": node.last_heartbeat.isoformat() if node.last_heartbeat else None
+        "last_heartbeat": node.last_heartbeat.isoformat() if node.last_heartbeat else None,
     }

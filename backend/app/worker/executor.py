@@ -1,16 +1,17 @@
-import os
-import time
 import json
 import logging
+import os
 import signal
-import subprocess
 import socket
+import subprocess
+import time
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
 
 class TaskExecutor:
     """任务执行器"""
@@ -34,6 +35,7 @@ class TaskExecutor:
         start_url = f"{master_url}/api/v1/executions/{execution_id}/start"
         try:
             import requests
+
             params = {"node_id": node_id} if node_id else {}
             resp = requests.post(start_url, params=params, timeout=5)
             if resp.status_code == 200:
@@ -57,7 +59,9 @@ class TaskExecutor:
             else:
                 logger.warning(f"Venv bin path not found: {bin_path}")
         elif venv_id:
-            logger.warning(f"Venv ID {venv_id} specified but venv_path not provided or not accessible")
+            logger.warning(
+                f"Venv ID {venv_id} specified but venv_path not provided or not accessible"
+            )
 
         # 2. 注入自定义变量
         if env_vars:
@@ -81,7 +85,9 @@ class TaskExecutor:
         try:
             # 先写入日志头部（使用 w 模式覆盖）
             with open(log_path, "w", encoding="utf-8") as log_file:
-                log_file.write(f"--- [Worker:{socket.gethostname()}] Task Started: {datetime.now()} ---\n")
+                log_file.write(
+                    f"--- [Worker:{socket.gethostname()}] Task Started: {datetime.now()} ---\n"
+                )
                 log_file.write(f"Cmd: {full_cmd}\n\n")
 
             process = subprocess.Popen(
@@ -93,7 +99,7 @@ class TaskExecutor:
                 env=env,
                 text=True,
                 bufsize=1,
-                start_new_session=True
+                start_new_session=True,
             )
 
             # 保存 PID 文件用于停止任务
@@ -102,7 +108,9 @@ class TaskExecutor:
 
             # 启动线程和事件
             import threading
+
             import redis
+
             stop_monitor = threading.Event()
             monitor_finished = threading.Event()
             stop_requested = threading.Event()  # 用户请求停止的标志
@@ -119,6 +127,7 @@ class TaskExecutor:
                 """后台监控进程内存使用"""
                 try:
                     import psutil
+
                     parent_proc = psutil.Process(pid)
                     last_log_time = time.time()
                     max_memory_mb = 0
@@ -141,10 +150,14 @@ class TaskExecutor:
                             current_time = time.time()
                             system_mem = psutil.virtual_memory()
 
-                            should_log = (current_time - last_log_time >= 30) or (system_mem.percent > 85)
+                            should_log = (current_time - last_log_time >= 30) or (
+                                system_mem.percent > 85
+                            )
 
                             if should_log and not stop_event.is_set():
-                                write_log(f"[Monitor] Process Memory: {total_mem_mb:.1f}MB, System: {system_mem.percent}% ({system_mem.used // 1024 // 1024}MB used)\n")
+                                write_log(
+                                    f"[Monitor] Process Memory: {total_mem_mb:.1f}MB, System: {system_mem.percent}% ({system_mem.used // 1024 // 1024}MB used)\n"
+                                )
                                 last_log_time = current_time
 
                                 if system_mem.percent > 85:
@@ -172,7 +185,7 @@ class TaskExecutor:
                     logger.info(f"开始监听停止信号: stop:execution:{exec_id}")
 
                     for message in pubsub.listen():
-                        if message['type'] == 'message':
+                        if message["type"] == "message":
                             logger.info(f"收到停止信号: execution_id={exec_id}")
                             stop_event.set()
                             try:
@@ -200,22 +213,16 @@ class TaskExecutor:
             monitor_thread = threading.Thread(
                 target=monitor_memory,
                 args=(process.pid, stop_monitor, monitor_finished),
-                daemon=True
+                daemon=True,
             )
             monitor_thread.start()
 
             stop_listener_thread = threading.Thread(
-                target=listen_stop_signal,
-                args=(execution_id, process, stop_requested),
-                daemon=True
+                target=listen_stop_signal, args=(execution_id, process, stop_requested), daemon=True
             )
             stop_listener_thread.start()
 
-            output_thread = threading.Thread(
-                target=read_output,
-                args=(process,),
-                daemon=True
-            )
+            output_thread = threading.Thread(target=read_output, args=(process,), daemon=True)
             output_thread.start()
 
             # 等待进程结束（带超时保护）
@@ -263,8 +270,13 @@ class TaskExecutor:
                 if exit_code > 128:
                     signal_num = exit_code - 128
                     signal_names = {
-                        1: "SIGHUP", 2: "SIGINT", 3: "SIGQUIT", 6: "SIGABRT",
-                        9: "SIGKILL", 14: "SIGALRM", 15: "SIGTERM"
+                        1: "SIGHUP",
+                        2: "SIGINT",
+                        3: "SIGQUIT",
+                        6: "SIGABRT",
+                        9: "SIGKILL",
+                        14: "SIGALRM",
+                        15: "SIGTERM",
                     }
                     signal_name = signal_names.get(signal_num, f"Signal {signal_num}")
                     write_log(f"Signal: {signal_name} ({signal_num})\n")
@@ -276,13 +288,18 @@ class TaskExecutor:
 
                 try:
                     import psutil
+
                     mem = psutil.virtual_memory()
-                    write_log(f"Memory: {mem.percent}% used ({mem.used // 1024 // 1024}MB / {mem.total // 1024 // 1024}MB)\n")
+                    write_log(
+                        f"Memory: {mem.percent}% used ({mem.used // 1024 // 1024}MB / {mem.total // 1024 // 1024}MB)\n"
+                    )
                 except:
                     pass
 
             # 5. 上报结果（必须在 if 块外部，确保始终执行）
-            logger.info(f"Execution {execution_id} finished with code {exit_code}, stopped={stop_requested.is_set()}")
+            logger.info(
+                f"Execution {execution_id} finished with code {exit_code}, stopped={stop_requested.is_set()}"
+            )
 
             # Callback to Master (带重试)
             master_url = os.environ.get("MASTER_URL", "http://backend:18081")
@@ -293,19 +310,21 @@ class TaskExecutor:
                 payload = {
                     "status": "stopped",
                     "exit_code": exit_code,
-                    "error_message": "任务被用户手动停止"
+                    "error_message": "任务被用户手动停止",
                 }
             elif timeout_expired:
                 payload = {
                     "status": "timeout",
                     "exit_code": exit_code if exit_code is not None else -1,
-                    "error_message": f"任务执行超时：超过 {timeout} 秒"
+                    "error_message": f"任务执行超时：超过 {timeout} 秒",
                 }
             else:
                 payload = {
                     "status": "success" if exit_code == 0 else "failed",
                     "exit_code": exit_code,
-                    "error_message": f"Process exited with code {exit_code}" if exit_code != 0 else None
+                    "error_message": f"Process exited with code {exit_code}"
+                    if exit_code != 0
+                    else None,
                 }
             self._send_callback_with_retry(callback_url, payload)
 
@@ -325,11 +344,7 @@ class TaskExecutor:
                     logger.warning(f"Failed to remove PID file: {e}")
 
     def _send_callback_with_retry(
-        self,
-        url: str,
-        payload: Dict[str, Any],
-        max_retries: int = None,
-        base_delay: float = None
+        self, url: str, payload: Dict[str, Any], max_retries: int = None, base_delay: float = None
     ) -> bool:
         """
         发送回调请求（带重试机制）
@@ -364,12 +379,14 @@ class TaskExecutor:
 
             # 如果不是最后一次尝试，等待后重试
             if attempt < max_retries:
-                delay = base_delay * (2 ** attempt)  # 指数退避: 2s, 4s, 8s
+                delay = base_delay * (2**attempt)  # 指数退避: 2s, 4s, 8s
                 logger.info(f"Retrying callback in {delay}s...")
                 time.sleep(delay)
 
         # P3: 所有重试失败后，持久化到本地文件等待后续重试
-        logger.error(f"Failed to send callback after {max_retries + 1} attempts, persisting for later retry")
+        logger.error(
+            f"Failed to send callback after {max_retries + 1} attempts, persisting for later retry"
+        )
         self._persist_failed_callback(url, payload)
         return False
 
@@ -387,7 +404,7 @@ class TaskExecutor:
             "url": url,
             "payload": payload,
             "timestamp": datetime.now().isoformat(),
-            "retry_count": 0
+            "retry_count": 0,
         }
 
         file_path = os.path.join(failed_dir, f"{uuid.uuid4()}.json")
@@ -409,8 +426,9 @@ class TaskExecutor:
         Returns:
             成功重试的回调数量
         """
-        import requests
         import glob
+
+        import requests
 
         failed_dir = os.path.join(settings.LOGS_DIR, "failed_callbacks")
         if not os.path.exists(failed_dir):
@@ -437,7 +455,9 @@ class TaskExecutor:
                     if age_seconds > max_age_hours * 3600:
                         os.remove(file_path)
                         expired_count += 1
-                        logger.warning(f"Expired callback removed (age > {max_age_hours}h): {file_path}")
+                        logger.warning(
+                            f"Expired callback removed (age > {max_age_hours}h): {file_path}"
+                        )
                         continue
 
                 # 检查重试次数
@@ -445,7 +465,9 @@ class TaskExecutor:
                 if retry_count >= max_retry_count:
                     os.remove(file_path)
                     max_retry_exceeded_count += 1
-                    logger.error(f"Max retry exceeded ({max_retry_count}), callback abandoned: {file_path}")
+                    logger.error(
+                        f"Max retry exceeded ({max_retry_count}), callback abandoned: {file_path}"
+                    )
                     continue
 
                 url = callback_data["url"]
@@ -461,7 +483,9 @@ class TaskExecutor:
                     callback_data["retry_count"] = retry_count + 1
                     with open(file_path, "w", encoding="utf-8") as f:
                         json.dump(callback_data, f, ensure_ascii=False, indent=2)
-                    logger.warning(f"Retry callback failed with status {response.status_code}, attempt {retry_count + 1}")
+                    logger.warning(
+                        f"Retry callback failed with status {response.status_code}, attempt {retry_count + 1}"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to retry callback {file_path}: {e}")
 

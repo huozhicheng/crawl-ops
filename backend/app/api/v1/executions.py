@@ -1,4 +1,5 @@
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -16,7 +17,7 @@ async def get_executions(
     status: Optional[str] = None,
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取执行记录列表"""
     from datetime import datetime
@@ -42,7 +43,7 @@ async def get_executions(
         task_id=task_id,
         status=status,
         start_time=st,
-        end_time=et
+        end_time=et,
     )
     return {
         "items": [
@@ -60,7 +61,7 @@ async def get_executions(
             }
             for item in items
         ],
-        "total": total
+        "total": total,
     }
 
 
@@ -89,7 +90,7 @@ async def get_execution_logs(
     lines: int = 200,
     offset: int = 0,
     after_line: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     获取执行日志内容
@@ -101,6 +102,7 @@ async def get_execution_logs(
         after_line: 增量获取，只返回该行号之后的新内容（用于 tail -f 效果）
     """
     import os
+
     from app.core.config import settings
 
     log_path = os.path.join(settings.LOGS_DIR, "executions", f"{execution_id}.log")
@@ -121,7 +123,7 @@ async def get_execution_logs(
                     "total_lines": total_lines,
                     "loaded_lines": 0,
                     "start_line": after_line + 1,
-                    "has_more": False
+                    "has_more": False,
                 }
             new_lines = all_lines[after_line:]
             return {
@@ -129,7 +131,7 @@ async def get_execution_logs(
                 "total_lines": total_lines,
                 "loaded_lines": len(new_lines),
                 "start_line": after_line + 1,
-                "has_more": False
+                "has_more": False,
             }
 
         # 分页模式：返回最后 N 行
@@ -145,10 +147,15 @@ async def get_execution_logs(
             "total_lines": total_lines,
             "loaded_lines": len(selected_lines),
             "start_line": start_idx + 1,
-            "has_more": start_idx > 0
+            "has_more": start_idx > 0,
         }
     except Exception as e:
-        return {"content": f"读取日志失败: {str(e)}", "total_lines": 0, "loaded_lines": 0, "has_more": False}
+        return {
+            "content": f"读取日志失败: {str(e)}",
+            "total_lines": 0,
+            "loaded_lines": 0,
+            "has_more": False,
+        }
 
 
 @router.post("/{execution_id}/stop")
@@ -157,10 +164,12 @@ async def stop_execution(execution_id: int, db: Session = Depends(get_db)):
     停止执行
     如果 Worker 在线，发送停止信号；如果 Worker 已离线，直接标记为 stopped
     """
-    from loguru import logger
-    from app.models import Node
     from datetime import datetime
+
+    from loguru import logger
+
     from app.core.redis_client import publish_stop_signal
+    from app.models import Node
 
     logger.info(f"收到停止执行请求: execution_id={execution_id}")
 
@@ -194,9 +203,7 @@ async def stop_execution(execution_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{execution_id}/start")
 async def start_execution(
-    execution_id: int,
-    node_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    execution_id: int, node_id: Optional[int] = None, db: Session = Depends(get_db)
 ):
     """
     Worker 回调接口 - 标记执行开始
@@ -224,22 +231,24 @@ async def start_execution(
 
 
 from pydantic import BaseModel
+
+
 class ExecutionCallback(BaseModel):
     status: str
     exit_code: int
     error_message: Optional[str] = None
 
+
 @router.post("/{execution_id}/callback")
 async def execution_callback(
-    execution_id: int,
-    data: ExecutionCallback,
-    db: Session = Depends(get_db)
+    execution_id: int, data: ExecutionCallback, db: Session = Depends(get_db)
 ):
     """
     Worker 回调接口 - 更新执行状态
     如果任务失败且有重试配置，自动调度重试
     """
     from datetime import datetime, timedelta
+
     from loguru import logger
 
     item = execution_service.get_by_id(db, execution_id)
@@ -255,11 +264,7 @@ async def execution_callback(
     task = item.task
 
     execution_service.update(
-        db,
-        item,
-        status=data.status,
-        exit_code=data.exit_code,
-        error_message=data.error_message
+        db, item, status=data.status, exit_code=data.exit_code, error_message=data.error_message
     )
     # Update end_time
     item.end_time = datetime.now()
@@ -271,10 +276,10 @@ async def execution_callback(
 
     # 检查是否需要重试
     should_retry = (
-        data.status in ("failed", "timeout") and
-        task and
-        task.retry_count > 0 and
-        (item.retry_attempt or 0) < task.retry_count
+        data.status in ("failed", "timeout")
+        and task
+        and task.retry_count > 0
+        and (item.retry_attempt or 0) < task.retry_count
     )
 
     if should_retry:
@@ -291,9 +296,9 @@ async def execution_callback(
 
         def schedule_retry():
             """延迟执行重试任务"""
-            from app.services.task_service import task_service
             from app.core.database import SessionLocal
             from app.models import TaskExecution
+            from app.services.task_service import task_service
 
             retry_db = SessionLocal()
             try:
@@ -303,7 +308,7 @@ async def execution_callback(
                     trigger_type="retry",
                     status="pending",
                     retry_attempt=retry_attempt,
-                    start_time=datetime.now()
+                    start_time=datetime.now(),
                 )
                 retry_db.add(retry_execution)
                 retry_db.commit()
@@ -313,8 +318,10 @@ async def execution_callback(
                 retry_task = task_service.get_by_id(retry_db, task.id)
                 if retry_task:
                     # 推送到 Redis 队列
-                    import redis
                     import json
+
+                    import redis
+
                     from app.core.config import settings
 
                     r = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -333,7 +340,7 @@ async def execution_callback(
                         "env_vars": retry_task.env_vars,
                         "venv_id": retry_task.venv_id,
                         "venv_path": venv_path,  # 传递虚拟环境路径供 Worker 使用
-                        "timeout": retry_task.timeout_seconds
+                        "timeout": retry_task.timeout_seconds,
                     }
                     r.lpush("crawlops:task:queue", json.dumps(task_payload))
                     logger.info(f"重试任务已推送: execution_id={retry_execution.id}")
@@ -347,7 +354,7 @@ async def execution_callback(
             schedule_retry,
             job_id=f"retry_{execution_id}_{retry_attempt}",
             trigger="once",
-            run_date=retry_time
+            run_date=retry_time,
         )
 
         return {"message": "Callback received, retry scheduled", "retry_at": retry_time.isoformat()}

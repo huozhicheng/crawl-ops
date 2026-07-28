@@ -7,12 +7,13 @@
 - 循环依赖检测
 - 依赖触发
 """
-from typing import Optional, List, Dict, Set
-from sqlalchemy.orm import Session
-from loguru import logger
+from typing import Dict, List, Optional, Set
 
-from app.models.task_dependency import TaskDependency
+from loguru import logger
+from sqlalchemy.orm import Session
+
 from app.models import Task, TaskExecution
+from app.models.task_dependency import TaskDependency
 
 
 class DependencyService:
@@ -20,10 +21,7 @@ class DependencyService:
 
     @staticmethod
     def add_dependency(
-        db: Session,
-        task_id: int,
-        depends_on_task_id: int,
-        condition_type: str = "success"
+        db: Session, task_id: int, depends_on_task_id: int, condition_type: str = "success"
     ) -> TaskDependency:
         """
         添加任务依赖
@@ -38,9 +36,7 @@ class DependencyService:
             raise ValueError("添加此依赖会产生循环依赖")
 
         dependency = TaskDependency(
-            task_id=task_id,
-            depends_on_task_id=depends_on_task_id,
-            condition_type=condition_type
+            task_id=task_id, depends_on_task_id=depends_on_task_id, condition_type=condition_type
         )
         db.add(dependency)
         db.commit()
@@ -52,10 +48,14 @@ class DependencyService:
     @staticmethod
     def remove_dependency(db: Session, task_id: int, depends_on_task_id: int) -> bool:
         """移除任务依赖"""
-        dep = db.query(TaskDependency).filter(
-            TaskDependency.task_id == task_id,
-            TaskDependency.depends_on_task_id == depends_on_task_id
-        ).first()
+        dep = (
+            db.query(TaskDependency)
+            .filter(
+                TaskDependency.task_id == task_id,
+                TaskDependency.depends_on_task_id == depends_on_task_id,
+            )
+            .first()
+        )
 
         if dep:
             db.delete(dep)
@@ -66,16 +66,12 @@ class DependencyService:
     @staticmethod
     def get_dependencies(db: Session, task_id: int) -> List[TaskDependency]:
         """获取任务的所有依赖"""
-        return db.query(TaskDependency).filter(
-            TaskDependency.task_id == task_id
-        ).all()
+        return db.query(TaskDependency).filter(TaskDependency.task_id == task_id).all()
 
     @staticmethod
     def get_dependents(db: Session, task_id: int) -> List[TaskDependency]:
         """获取依赖此任务的所有任务"""
-        return db.query(TaskDependency).filter(
-            TaskDependency.depends_on_task_id == task_id
-        ).all()
+        return db.query(TaskDependency).filter(TaskDependency.depends_on_task_id == task_id).all()
 
     @staticmethod
     def would_create_cycle(db: Session, task_id: int, depends_on_task_id: int) -> bool:
@@ -97,9 +93,7 @@ class DependencyService:
             visited.add(current)
 
             # 获取current的依赖
-            deps = db.query(TaskDependency).filter(
-                TaskDependency.task_id == current
-            ).all()
+            deps = db.query(TaskDependency).filter(TaskDependency.task_id == current).all()
 
             for dep in deps:
                 if dep.depends_on_task_id == task_id:
@@ -109,10 +103,7 @@ class DependencyService:
         return False
 
     @staticmethod
-    def check_dependencies_satisfied(
-        db: Session,
-        task_id: int
-    ) -> bool:
+    def check_dependencies_satisfied(db: Session, task_id: int) -> bool:
         """
         检查任务的所有依赖是否满足
 
@@ -126,9 +117,12 @@ class DependencyService:
 
         for dep in dependencies:
             # 获取依赖任务的最新执行记录
-            latest_execution = db.query(TaskExecution).filter(
-                TaskExecution.task_id == dep.depends_on_task_id
-            ).order_by(TaskExecution.id.desc()).first()
+            latest_execution = (
+                db.query(TaskExecution)
+                .filter(TaskExecution.task_id == dep.depends_on_task_id)
+                .order_by(TaskExecution.id.desc())
+                .first()
+            )
 
             if not latest_execution:
                 return False

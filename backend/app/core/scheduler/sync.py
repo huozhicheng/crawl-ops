@@ -4,6 +4,7 @@
 负责将用户定义的任务同步到调度器，包括 cron、interval、once、random 类型。
 """
 from datetime import datetime
+
 from loguru import logger
 
 from app.core.scheduler.manager import scheduler_manager
@@ -17,9 +18,9 @@ def _get_task_max_instances(task) -> int:
     - 如果 allow_parallel=0，则返回 1（不允许并行）
     - 如果 allow_parallel=1，则返回 task.max_instances（默认为1）
     """
-    if not getattr(task, 'allow_parallel', 0):
+    if not getattr(task, "allow_parallel", 0):
         return 1
-    return getattr(task, 'max_instances', 1) or 1
+    return getattr(task, "max_instances", 1) or 1
 
 
 def _acquire_task_lock(task_id: int, ttl_seconds: int = 3600) -> bool:
@@ -36,6 +37,7 @@ def _acquire_task_lock(task_id: int, ttl_seconds: int = 3600) -> bool:
         True if lock acquired, False if already locked
     """
     import redis
+
     from app.core.config import settings
 
     try:
@@ -56,6 +58,7 @@ def _acquire_task_lock(task_id: int, ttl_seconds: int = 3600) -> bool:
 def _release_task_lock(task_id: int) -> None:
     """释放任务执行的分布式锁"""
     import redis
+
     from app.core.config import settings
 
     try:
@@ -82,15 +85,15 @@ def _check_parallel_allowed(db, task) -> bool:
     max_instances = _get_task_max_instances(task)
 
     # 查询当前运行中的实例数
-    running_count = db.query(TaskExecution).filter(
-        TaskExecution.task_id == task.id,
-        TaskExecution.status.in_(["pending", "running"])
-    ).count()
+    running_count = (
+        db.query(TaskExecution)
+        .filter(TaskExecution.task_id == task.id, TaskExecution.status.in_(["pending", "running"]))
+        .count()
+    )
 
     if running_count >= max_instances:
         logger.warning(
-            f"任务 {task.id} 已有 {running_count} 个运行中的实例，"
-            f"超过最大并行数 {max_instances}，跳过本次调度"
+            f"任务 {task.id} 已有 {running_count} 个运行中的实例，" f"超过最大并行数 {max_instances}，跳过本次调度"
         )
         return False
 
@@ -99,8 +102,8 @@ def _check_parallel_allowed(db, task) -> bool:
 
 def run_user_task(task_id: int):
     """运行用户任务（带分布式锁和并行检查）"""
-    from app.services.task_service import task_service
     from app.core.database import SessionLocal
+    from app.services.task_service import task_service
 
     db = SessionLocal()
     lock_acquired = False
@@ -138,8 +141,8 @@ def run_user_task(task_id: int):
 
 def run_random_task(task_id: int):
     """运行随机调度任务并重新调度下一次（带分布式锁和并行检查）"""
-    from app.services.task_service import task_service
     from app.core.database import SessionLocal
+    from app.services.task_service import task_service
 
     db = SessionLocal()
     lock_acquired = False
@@ -196,7 +199,7 @@ def sync_task_to_scheduler(task):
             trigger="cron",
             expression=task.cron_expression,
             max_instances=max_instances,
-            args=[task.id]
+            args=[task.id],
         )
         # 获取下一次运行时间
         job = scheduler_manager.scheduler.get_job(job_id)
@@ -217,7 +220,7 @@ def sync_task_to_scheduler(task):
             minutes=task.interval_seconds // 60 if task.interval_seconds >= 60 else 1,
             max_instances=max_instances,
             next_run_time=db_next_run,  # 传入数据库保存的时间
-            args=[task.id]
+            args=[task.id],
         )
         # 获取下一次运行时间（可能是传入的或新计算的）
         job = scheduler_manager.scheduler.get_job(job_id)
@@ -232,11 +235,15 @@ def sync_task_to_scheduler(task):
                 trigger="once",
                 run_date=task.scheduled_time,
                 max_instances=max_instances,
-                args=[task.id]
+                args=[task.id],
             )
             next_run_time = task.scheduled_time
 
-    elif task.schedule_type == "random" and task.random_start_hour is not None and task.random_end_hour is not None:
+    elif (
+        task.schedule_type == "random"
+        and task.random_start_hour is not None
+        and task.random_end_hour is not None
+    ):
         # 随机调度：计算下一个随机执行时间
         try:
             next_run = get_next_random_time(task.random_start_hour, task.random_end_hour)
@@ -246,7 +253,7 @@ def sync_task_to_scheduler(task):
                 trigger="once",
                 run_date=next_run,
                 max_instances=max_instances,
-                args=[task.id]
+                args=[task.id],
             )
             logger.info(f"随机调度任务 {task.id} 下次执行时间: {next_run}")
             next_run_time = next_run
@@ -266,8 +273,8 @@ def sync_task_to_scheduler(task):
 
 def sync_all_tasks():
     """同步所有已启用的任务到调度器"""
-    from app.models import Task
     from app.core.database import SessionLocal
+    from app.models import Task
 
     db = SessionLocal()
     try:

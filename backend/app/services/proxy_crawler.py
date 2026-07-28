@@ -10,16 +10,17 @@
 import asyncio
 import re
 from abc import ABC, abstractmethod
-from typing import List, Optional
 from dataclasses import dataclass
-from loguru import logger
+from typing import List, Optional
 
 import httpx
+from loguru import logger
 
 
 @dataclass
 class ProxyItem:
     """代理项数据类"""
+
     ip: str
     port: int
     protocol: str = "http"
@@ -67,14 +68,10 @@ class IP66Crawler(BaseProxyCrawler):
         for url in self.urls:
             content = await self.fetch(url)
             if content:
-                pattern = r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d+)'
+                pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d+)"
                 matches = re.findall(pattern, content)
                 for ip, port in matches:
-                    proxies.append(ProxyItem(
-                        ip=ip,
-                        port=int(port),
-                        source=self.name
-                    ))
+                    proxies.append(ProxyItem(ip=ip, port=int(port), source=self.name))
         logger.info(f"[{self.name}] 采集到 {len(proxies)} 个代理")
         return proxies
 
@@ -99,11 +96,7 @@ class KuaiDaiLiCrawler(BaseProxyCrawler):
                 ips = re.findall(ip_pattern, content)
                 ports = re.findall(port_pattern, content)
                 for ip, port in zip(ips, ports):
-                    proxies.append(ProxyItem(
-                        ip=ip,
-                        port=int(port),
-                        source=self.name
-                    ))
+                    proxies.append(ProxyItem(ip=ip, port=int(port), source=self.name))
             # 避免请求过快被封
             await asyncio.sleep(1)
         logger.info(f"[{self.name}] 采集到 {len(proxies)} 个代理")
@@ -124,14 +117,10 @@ class IP3366Crawler(BaseProxyCrawler):
         for url in self.urls:
             content = await self.fetch(url)
             if content:
-                pattern = r'<td>(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})</td>\s*<td>(\d+)</td>'
+                pattern = r"<td>(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})</td>\s*<td>(\d+)</td>"
                 matches = re.findall(pattern, content)
                 for ip, port in matches:
-                    proxies.append(ProxyItem(
-                        ip=ip,
-                        port=int(port),
-                        source=self.name
-                    ))
+                    proxies.append(ProxyItem(ip=ip, port=int(port), source=self.name))
             await asyncio.sleep(1)
         logger.info(f"[{self.name}] 采集到 {len(proxies)} 个代理")
         return proxies

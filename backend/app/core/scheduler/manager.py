@@ -5,12 +5,12 @@
 """
 from datetime import datetime
 from typing import Callable
-from loguru import logger
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+from loguru import logger
 
 
 class SchedulerManager:
@@ -22,23 +22,14 @@ class SchedulerManager:
         # - coalesce: 当多次执行被错过时，合并为一次执行
         # - max_instances: 同一任务同时运行的最大实例数
         job_defaults = {
-            'misfire_grace_time': 3600,  # 1小时容错期
-            'coalesce': True,             # 合并错过的执行
-            'max_instances': 1            # 默认单实例运行
+            "misfire_grace_time": 3600,  # 1小时容错期
+            "coalesce": True,  # 合并错过的执行
+            "max_instances": 1,  # 默认单实例运行
         }
-        self.scheduler = AsyncIOScheduler(
-            timezone="Asia/Shanghai",
-            job_defaults=job_defaults
-        )
+        self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai", job_defaults=job_defaults)
         self._started = False
 
-    def add_job(
-        self,
-        func: Callable,
-        job_id: str,
-        trigger: str = "interval",
-        **kwargs
-    ) -> None:
+    def add_job(self, func: Callable, job_id: str, trigger: str = "interval", **kwargs) -> None:
         """添加定时任务
 
         Args:
@@ -56,13 +47,13 @@ class SchedulerManager:
         next_run_time = kwargs.pop("next_run_time", None)  # 从数据库恢复的下次运行时间
         job_kwargs = {}
         if max_instances is not None:
-            job_kwargs['max_instances'] = max_instances
+            job_kwargs["max_instances"] = max_instances
 
         if trigger == "interval":
             minutes = kwargs.pop("minutes", 10)
             # 如果有数据库中的 next_run_time，使用它来保持重启后时间连续
             if next_run_time:
-                job_kwargs['next_run_time'] = next_run_time
+                job_kwargs["next_run_time"] = next_run_time
                 logger.info(f"使用数据库时间恢复任务 {job_id}: {next_run_time}")
             self.scheduler.add_job(
                 func,
@@ -70,9 +61,11 @@ class SchedulerManager:
                 id=job_id,
                 replace_existing=True,
                 **job_kwargs,
-                **kwargs
+                **kwargs,
             )
-            logger.info(f"添加间隔任务: {job_id}, 间隔: {minutes}分钟, max_instances: {max_instances or 'default'}")
+            logger.info(
+                f"添加间隔任务: {job_id}, 间隔: {minutes}分钟, max_instances: {max_instances or 'default'}"
+            )
         elif trigger == "cron":
             expression = kwargs.pop("expression", None)
             if not expression:
@@ -84,9 +77,11 @@ class SchedulerManager:
                 id=job_id,
                 replace_existing=True,
                 **job_kwargs,
-                **kwargs
+                **kwargs,
             )
-            logger.info(f"添加Cron任务: {job_id}, 表达式: {expression}, max_instances: {max_instances or 'default'}")
+            logger.info(
+                f"添加Cron任务: {job_id}, 表达式: {expression}, max_instances: {max_instances or 'default'}"
+            )
         elif trigger == "once":
             run_date = kwargs.pop("run_date", None)
             if not run_date:
@@ -98,7 +93,7 @@ class SchedulerManager:
                 id=job_id,
                 replace_existing=True,
                 **job_kwargs,
-                **kwargs
+                **kwargs,
             )
             logger.info(f"添加一次性任务: {job_id}, 时间: {run_date}")
 
@@ -112,8 +107,10 @@ class SchedulerManager:
         """启动调度器"""
         if not self._started:
             # 注册事件监听器
-            from app.core.scheduler.events import on_job_executed, on_job_missed
             from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
+
+            from app.core.scheduler.events import on_job_executed, on_job_missed
+
             self.scheduler.add_listener(on_job_executed, EVENT_JOB_EXECUTED)
             self.scheduler.add_listener(on_job_missed, EVENT_JOB_MISSED)
             self.scheduler.start()

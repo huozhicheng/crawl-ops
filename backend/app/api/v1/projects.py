@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.core.database import get_db
-from app.schemas import ProjectResponse, ProjectListResponse, ProjectCreate, ProjectUpdate
-from app.services import project_service
-from app.services.node_service import node_service
-from app.services.audit_service import audit_service
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from sqlalchemy.orm import Session
+
 from app.api.v1.auth import get_current_user
+from app.core.database import get_db
 from app.models import User
+from app.schemas import ProjectCreate, ProjectListResponse, ProjectResponse, ProjectUpdate
+from app.services import project_service
+from app.services.audit_service import audit_service
+from app.services.node_service import node_service
 
 router = APIRouter()
 worker_router = APIRouter()
@@ -21,7 +22,7 @@ async def get_projects(
     keyword: Optional[str] = None,
     type: Optional[str] = None,
     status: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取项目列表"""
     items, total = project_service.get_list(db, page, page_size, keyword, type, status)
@@ -29,7 +30,7 @@ async def get_projects(
         items=[ProjectResponse.model_validate(p) for p in items],
         total=total,
         page=page,
-        page_size=page_size
+        page_size=page_size,
     )
 
 
@@ -38,7 +39,7 @@ async def create_project(
     data: ProjectCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """创建项目"""
     # 检查代码是否存在
@@ -49,10 +50,14 @@ async def create_project(
 
     # Audit Log
     audit_service.log(
-        db, user_id=current_user.id, username=current_user.username, action="create_project",
-        resource_type="project", resource_id=project.id,
+        db,
+        user_id=current_user.id,
+        username=current_user.username,
+        action="create_project",
+        resource_type="project",
+        resource_id=project.id,
         detail={"name": project.name, "code": project.code},
-        ip=request.headers.get("X-Forwarded-For", request.client.host).split(",")[0]
+        ip=request.headers.get("X-Forwarded-For", request.client.host).split(",")[0],
     )
 
     return ProjectResponse.model_validate(project)
@@ -83,7 +88,7 @@ async def delete_project(
     project_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """删除项目"""
     project = project_service.get_by_id(db, project_id)
@@ -94,10 +99,14 @@ async def delete_project(
 
     # Audit Log
     audit_service.log(
-        db, user_id=current_user.id, username=current_user.username, action="delete_project",
-        resource_type="project", resource_id=project_id,
+        db,
+        user_id=current_user.id,
+        username=current_user.username,
+        action="delete_project",
+        resource_type="project",
+        resource_id=project_id,
         detail={"name": project.name},
-        ip=request.headers.get("X-Forwarded-For", request.client.host).split(",")[0]
+        ip=request.headers.get("X-Forwarded-For", request.client.host).split(",")[0],
     )
 
     return {"message": "删除成功"}
@@ -112,10 +121,12 @@ async def sync_project(project_id: int, db: Session = Depends(get_db)):
     return {"message": "同步成功"}
 
 
-from fastapi.responses import FileResponse
-import tempfile
-import shutil
 import os
+import shutil
+import tempfile
+
+from fastapi.responses import FileResponse
+
 from app.core.config import settings
 
 
@@ -147,17 +158,17 @@ async def download_project_code(
     try:
         # 打包项目目录（排除常见的无用文件）
         shutil.make_archive(
-            zip_path.replace('.zip', ''),
-            'zip',
+            zip_path.replace(".zip", ""),
+            "zip",
             root_dir=settings.PROJECTS_DIR,
-            base_dir=project_code
+            base_dir=project_code,
         )
 
         return FileResponse(
             path=zip_path,
             filename=f"{project_code}.zip",
             media_type="application/zip",
-            background=None  # 防止文件在发送前被删除
+            background=None,  # 防止文件在发送前被删除
         )
     except Exception as e:
         # 清理临时目录

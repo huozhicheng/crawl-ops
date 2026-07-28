@@ -2,20 +2,27 @@
 文件管理API测试
 """
 import os
-import tempfile
 import shutil
+import tempfile
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from main import app
+from app.api.v1.auth import get_current_user
 from app.core.database import Base, get_db
 from app.models import Project, User
-from app.api.v1.auth import get_current_user
+from main import app
 
 # 创建测试数据库
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SQLALCHEMY_DATABASE_URL = "sqlite://"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base.metadata.create_all(bind=engine)
@@ -45,31 +52,34 @@ client = TestClient(app)
 def setup_test_project():
     """创建测试项目和测试文件"""
     db = TestingSessionLocal()
+    suffix = uuid4().hex
+    test_id = uuid4().int & ((1 << 63) - 1)
+    username = f"testuser_{suffix}"
+    project_code = f"test_project_{suffix}"
 
     # 创建测试用户
     user = User(
-        username="testuser",
-        password_hash="test",
-        email="test@example.com"
+        id=test_id, username=username, password_hash="test", email=f"{username}@example.com"
     )
     db.add(user)
     db.commit()
 
     # 创建测试项目
     project = Project(
+        id=test_id,
         name="测试项目",
-        code="test_project",
+        code=project_code,
         description="测试项目",
         type="python",
         source_type="upload",
-        created_by=user.id
+        created_by=user.id,
     )
     db.add(project)
     db.commit()
 
     # 创建测试文件目录
     test_dir = tempfile.mkdtemp()
-    project_dir = os.path.join(test_dir, "test_project")
+    project_dir = os.path.join(test_dir, project_code)
     os.makedirs(project_dir, exist_ok=True)
 
     # 创建测试文件
@@ -84,8 +94,9 @@ def setup_test_project():
     with open(os.path.join(project_dir, "src", "utils.py"), "w") as f:
         f.write("def hello():\n    return 'hello'")
 
+    project_id = project.id
     db.close()
-    return project.id, test_dir
+    return project_id, test_dir
 
 
 def test_list_files():
@@ -94,6 +105,7 @@ def test_list_files():
 
     # 临时修改PROJECTS_DIR
     from app.core import config
+
     original_dir = config.settings.PROJECTS_DIR
     config.settings.PROJECTS_DIR = test_dir
 
@@ -120,13 +132,13 @@ def test_view_file():
     project_id, test_dir = setup_test_project()
 
     from app.core import config
+
     original_dir = config.settings.PROJECTS_DIR
     config.settings.PROJECTS_DIR = test_dir
 
     try:
         response = client.get(
-            f"/api/v1/files/project/{project_id}/view",
-            params={"path": "main.py"}
+            f"/api/v1/files/project/{project_id}/view", params={"path": "main.py"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -143,13 +155,13 @@ def test_search_files():
     project_id, test_dir = setup_test_project()
 
     from app.core import config
+
     original_dir = config.settings.PROJECTS_DIR
     config.settings.PROJECTS_DIR = test_dir
 
     try:
         response = client.get(
-            f"/api/v1/files/project/{project_id}/search",
-            params={"keyword": "main"}
+            f"/api/v1/files/project/{project_id}/search", params={"keyword": "main"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -167,18 +179,38 @@ def test_path_traversal_protection():
     project_id, test_dir = setup_test_project()
 
     from app.core import config
+
     original_dir = config.settings.PROJECTS_DIR
     config.settings.PROJECTS_DIR = test_dir
 
     try:
         # 尝试访问上级目录
-        response = client.get(
-            f"/api/v1/files/project/{project_id}/list",
-            params={"path": "../"}
-        )
+        response = client.get(f"/api/v1/files/project/{project_id}/list", params={"path": "../"})
         assert response.status_code == 400
         assert "非法路径" in response.json()["detail"]
 
+    finally:
+        config.settings.PROJECTS_DIR = original_dir
+        shutil.rmtree(test_dir)
+
+
+def test_upload_rejects_path_in_filename():
+    """上传文件名不能携带路径，以免写到项目目录之外。"""
+    project_id, test_dir = setup_test_project()
+
+    from app.core import config
+
+    original_dir = config.settings.PROJECTS_DIR
+    config.settings.PROJECTS_DIR = test_dir
+
+    try:
+        response = client.post(
+            f"/api/v1/files/project/{project_id}/upload-file",
+            files={"file": ("../outside.py", b"print('unsafe')", "text/x-python")},
+        )
+        assert response.status_code == 400
+        assert "文件名不能包含路径" in response.json()["detail"]
+        assert not os.path.exists(os.path.join(test_dir, "outside.py"))
     finally:
         config.settings.PROJECTS_DIR = original_dir
         shutil.rmtree(test_dir)

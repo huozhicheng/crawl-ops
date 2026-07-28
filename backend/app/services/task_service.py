@@ -2,10 +2,11 @@ import os
 import subprocess
 import threading
 import time
-from typing import Optional, Tuple
 from datetime import datetime
-from sqlalchemy.orm import Session
+from typing import Optional, Tuple
+
 from loguru import logger
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models import Task, TaskExecution
@@ -27,7 +28,7 @@ class TaskService:
         project_id: Optional[int] = None,
         schedule_type: Optional[str] = None,
         status: Optional[int] = None,
-        name: Optional[str] = None
+        name: Optional[str] = None,
     ) -> Tuple[list, int]:
         """获取任务列表"""
         query = db.query(Task)
@@ -56,6 +57,7 @@ class TaskService:
 
         # 同步到调度器
         from app.core.scheduler import sync_task_to_scheduler
+
         sync_task_to_scheduler(task)
 
         return task
@@ -71,6 +73,7 @@ class TaskService:
 
         # 同步到调度器
         from app.core.scheduler import sync_task_to_scheduler
+
         sync_task_to_scheduler(task)
 
         return task
@@ -84,6 +87,7 @@ class TaskService:
 
         # 从调度器移除
         from app.core.scheduler import scheduler_manager
+
         scheduler_manager.remove_job(f"task_{task_id}")
 
     @staticmethod
@@ -95,10 +99,7 @@ class TaskService:
     def run(db: Session, task: Task, trigger_type: str = "manual") -> TaskExecution:
         """执行任务 (通过 Redis 队列)"""
         execution = TaskExecution(
-            task_id=task.id,
-            trigger_type=trigger_type,
-            status="pending",
-            start_time=datetime.now()
+            task_id=task.id, trigger_type=trigger_type, status="pending", start_time=datetime.now()
         )
         db.add(execution)
         db.commit()
@@ -108,8 +109,9 @@ class TaskService:
 
         # 将任务推送到 Redis 队列
         try:
-            import redis
             import json
+
+            import redis
 
             project_code = task.project.code
             r = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -117,6 +119,7 @@ class TaskService:
             venv_path = None
             if task.venv_id:
                 from app.models import Venv
+
                 venv = db.query(Venv).filter(Venv.id == task.venv_id).first()
                 if venv:
                     venv_path = venv.path
@@ -131,7 +134,7 @@ class TaskService:
                 "env_vars": task.env_vars,
                 "venv_id": task.venv_id,
                 "venv_path": venv_path,  # 传递虚拟环境路径供 Worker 使用
-                "timeout": task.timeout_seconds
+                "timeout": task.timeout_seconds,
             }
             r.lpush("crawlops:task:queue", json.dumps(task_payload))
             logger.info(f"Pushed execution {execution.id} to crawlops:task:queue")
@@ -149,6 +152,7 @@ class TaskService:
     def _execute_task(task_id: int, execution_id: int):
         """后台执行任务逻辑"""
         from app.core.database import SessionLocal
+
         db = SessionLocal()
         logger.info(f"Background thread started for execution {execution_id}")
         try:
@@ -156,7 +160,9 @@ class TaskService:
             task = db.query(Task).filter(Task.id == task_id).first()
             execution = db.query(TaskExecution).filter(TaskExecution.id == execution_id).first()
             if not task or not execution:
-                logger.error(f"Task {task_id} or Execution {execution_id} not found in background thread")
+                logger.error(
+                    f"Task {task_id} or Execution {execution_id} not found in background thread"
+                )
                 return
 
             # 2. 更新状态为 running
@@ -165,6 +171,7 @@ class TaskService:
 
             # 同步项目代码
             from app.services.project_service import project_service
+
             if not project_service.sync_project_code(db, task.project_id):
                 execution.status = "failed"
                 execution.error_message = "Project code sync failed"
@@ -211,6 +218,7 @@ class TaskService:
                     # 1. 注入虚拟环境 PATH
                     if task.venv_id:
                         from app.models import Venv
+
                         venv = db.query(Venv).filter(Venv.id == task.venv_id).first()
                         if venv and os.path.exists(venv.path):
                             bin_path = os.path.join(venv.path, "bin")
@@ -221,6 +229,7 @@ class TaskService:
                     # 2. 合并用户自定义变量
                     if task.env_vars:
                         import json
+
                         try:
                             custom_env = json.loads(task.env_vars)
                             env.update(custom_env)
@@ -236,7 +245,7 @@ class TaskService:
                         stderr=subprocess.STDOUT,
                         env=env,
                         text=True,
-                        bufsize=1
+                        bufsize=1,
                     )
 
                     # 实时读取输出并写入日志
@@ -295,7 +304,7 @@ class ExecutionService:
         task_id: Optional[int] = None,
         status: Optional[str] = None,
         start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
+        end_time: Optional[datetime] = None,
     ) -> Tuple[list, int]:
         """获取执行记录列表"""
         query = db.query(TaskExecution)
@@ -310,7 +319,12 @@ class ExecutionService:
             query = query.filter(TaskExecution.start_time <= end_time)
 
         total = query.count()
-        items = query.order_by(TaskExecution.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        items = (
+            query.order_by(TaskExecution.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
 
         return items, total
 
@@ -323,10 +337,13 @@ class ExecutionService:
     def count_today(db: Session) -> int:
         """统计今日执行次数"""
         from datetime import date
+
         today = date.today()
-        return db.query(TaskExecution).filter(
-            TaskExecution.start_time >= datetime.combine(today, datetime.min.time())
-        ).count()
+        return (
+            db.query(TaskExecution)
+            .filter(TaskExecution.start_time >= datetime.combine(today, datetime.min.time()))
+            .count()
+        )
 
     @staticmethod
     def success_rate(db: Session) -> float:

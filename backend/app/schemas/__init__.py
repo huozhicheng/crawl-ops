@@ -1,40 +1,31 @@
-from app.schemas.schemas import (
-    # 通用
-    ResponseBase,
-    PaginatedResponse,
-    # 用户
-    UserCreate,
-    UserUpdate,
-    UserResponse,
-    UserListResponse,
-    # 认证
-    LoginRequest,
-    TokenResponse,
-    # 项目
-    ProjectCreate,
-    ProjectUpdate,
-    ProjectResponse,
-    ProjectListResponse,
-    # 任务
-    TaskCreate,
-    TaskUpdate,
-    TaskResponse,
-    TaskListResponse,
-    # 执行
-    ExecutionResponse,
-    ExecutionListResponse,
-    # 节点
-    NodeCreate,
-    NodeResponse,
-    NodeListResponse,
-    # 代理
-    ProxyCreate,
-    ProxyImport,
-    ProxyResponse,
-    ProxyListResponse,
-    ProxyGetResponse,
-    # 仪表盘
+from app.schemas.schemas import (  # 通用; 用户; 认证; 项目; 任务; 执行; 节点; 代理; 仪表盘
     DashboardOverview,
+    ExecutionListResponse,
+    ExecutionResponse,
+    LoginRequest,
+    NodeCreate,
+    NodeListResponse,
+    NodeResponse,
+    PaginatedResponse,
+    ProjectCreate,
+    ProjectListResponse,
+    ProjectResponse,
+    ProjectUpdate,
+    ProxyCreate,
+    ProxyGetResponse,
+    ProxyImport,
+    ProxyListResponse,
+    ProxyResponse,
+    ResponseBase,
+    TaskCreate,
+    TaskListResponse,
+    TaskResponse,
+    TaskUpdate,
+    TokenResponse,
+    UserCreate,
+    UserListResponse,
+    UserResponse,
+    UserUpdate,
 )
 
 __all__ = [

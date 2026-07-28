@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from typing import Optional, List
-from pydantic import BaseModel
 from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.audit_service import audit_service
 
 router = APIRouter()
+
 
 class AuditLogResponse(BaseModel):
     id: int
@@ -23,9 +25,11 @@ class AuditLogResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class AuditListResponse(BaseModel):
     items: List[AuditLogResponse]
     total: int
+
 
 @router.get("", response_model=AuditListResponse)
 async def list_audits(
@@ -36,7 +40,7 @@ async def list_audits(
     resource_type: Optional[str] = None,
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """查询审计日志"""
     items, total = audit_service.get_list(

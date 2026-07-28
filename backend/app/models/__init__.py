@@ -1,18 +1,18 @@
+from app.models.audit import AuditLog
 from app.models.models import (
-    User,
-    Role,
-    UserRole,
+    Node,
+    NodeMetric,
+    NotificationConfig,
     Project,
+    Proxy,
+    Role,
+    SystemConfig,
     Task,
     TaskExecution,
-    Node,
-    Proxy,
-    SystemConfig,
+    User,
+    UserRole,
     Venv,
-    NotificationConfig,
-    NodeMetric,
 )
-from app.models.audit import AuditLog
 from app.models.task_dependency import TaskDependency
 
 __all__ = [

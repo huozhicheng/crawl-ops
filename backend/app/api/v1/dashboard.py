@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import List
+
+from fastapi import APIRouter, Depends, Query
 from loguru import logger
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas import DashboardOverview, ExecutionResponse
-from app.services import project_service, task_service, proxy_service, node_service
-from app.services.task_service import execution_service
 from app.models import Node
+from app.schemas import DashboardOverview, ExecutionResponse
+from app.services import node_service, project_service, proxy_service, task_service
+from app.services.task_service import execution_service
 
 router = APIRouter()
 
@@ -16,8 +17,9 @@ router = APIRouter()
 @router.get("/overview")
 async def get_overview(db: Session = Depends(get_db)):
     """系统概览 - 增强版"""
-    from app.models import Task, TaskExecution, Venv
     from sqlalchemy import func
+
+    from app.models import Task, TaskExecution, Venv
 
     # 计算节点平均资源使用率
     online_nodes = db.query(Node).filter(Node.status == "online").all()
@@ -40,13 +42,15 @@ async def get_overview(db: Session = Depends(get_db)):
 
     # 执行统计
     total_executions = db.query(TaskExecution).count()
-    success_count = db.query(TaskExecution).filter(TaskExecution.status == 'success').count()
-    failed_count = db.query(TaskExecution).filter(TaskExecution.status == 'failed').count()
+    success_count = db.query(TaskExecution).filter(TaskExecution.status == "success").count()
+    failed_count = db.query(TaskExecution).filter(TaskExecution.status == "failed").count()
 
     # 平均执行时长
-    avg_duration_result = db.query(func.avg(TaskExecution.duration)).filter(
-        TaskExecution.duration.isnot(None)
-    ).scalar()
+    avg_duration_result = (
+        db.query(func.avg(TaskExecution.duration))
+        .filter(TaskExecution.duration.isnot(None))
+        .scalar()
+    )
     avg_duration = round(float(avg_duration_result or 0), 1)
 
     return {
@@ -72,6 +76,7 @@ async def get_overview(db: Session = Depends(get_db)):
 async def get_trend(days: int = 7, db: Session = Depends(get_db)):
     """任务执行趋势"""
     from app.services.statistics_service import statistics_service
+
     return statistics_service.get_execution_trend(db, days)
 
 
@@ -101,7 +106,7 @@ async def get_nodes_monitor(db: Session = Depends(get_db)):
                 "cpu_usage": float(n.cpu_usage or 0),
                 "memory_usage": float(n.memory_usage or 0),
                 "disk_usage": float(n.disk_usage or 0),
-                "last_heartbeat": n.last_heartbeat
+                "last_heartbeat": n.last_heartbeat,
             }
             for n in items
         ]
@@ -110,18 +115,18 @@ async def get_nodes_monitor(db: Session = Depends(get_db)):
 
 @router.get("/node-history")
 async def get_node_history(
-    node_id: int = Query(...),
-    limit: int = Query(60, ge=1, le=200),
-    db: Session = Depends(get_db)
+    node_id: int = Query(...), limit: int = Query(60, ge=1, le=200), db: Session = Depends(get_db)
 ):
     """获取节点性能历史"""
     from app.models import NodeMetric
 
-    metrics = db.query(NodeMetric).filter(
-        NodeMetric.node_id == node_id
-    ).order_by(
-        NodeMetric.created_at.desc()
-    ).limit(limit).all()
+    metrics = (
+        db.query(NodeMetric)
+        .filter(NodeMetric.node_id == node_id)
+        .order_by(NodeMetric.created_at.desc())
+        .limit(limit)
+        .all()
+    )
 
     # 反转顺序，使时间从早到晚
     metrics = list(reversed(metrics))
@@ -134,7 +139,7 @@ async def get_node_history(
                 "disk_usage": float(m.disk_usage or 0),
                 "network_sent": m.network_sent or 0,
                 "network_recv": m.network_recv or 0,
-                "created_at": m.created_at.isoformat() if m.created_at else None
+                "created_at": m.created_at.isoformat() if m.created_at else None,
             }
             for m in metrics
         ]
@@ -158,10 +163,9 @@ async def get_risks(db: Session = Depends(get_db)):
     return {
         "failures": [ExecutionResponse.model_validate(e) for e in failures],
         "offline_nodes": [
-            {"id": n.id, "name": n.name, "last_heartbeat": n.last_heartbeat}
-            for n in offline_nodes
+            {"id": n.id, "name": n.name, "last_heartbeat": n.last_heartbeat} for n in offline_nodes
         ],
-        "risky_proxies_count": risky_proxies_count
+        "risky_proxies_count": risky_proxies_count,
     }
 
 
@@ -169,23 +173,32 @@ async def get_risks(db: Session = Depends(get_db)):
 async def get_upcoming(limit: int = 5, db: Session = Depends(get_db)):
     """未来调度任务"""
     from datetime import datetime
+
     from app.models import Task
 
     # 直接查询 scheduled_time
-    tasks = db.query(Task).filter(
-        Task.status == 1,
-        Task.scheduled_time.isnot(None),
-        Task.scheduled_time > datetime.now()
-    ).order_by(Task.scheduled_time.asc()).limit(limit).all()
+    tasks = (
+        db.query(Task)
+        .filter(
+            Task.status == 1, Task.scheduled_time.isnot(None), Task.scheduled_time > datetime.now()
+        )
+        .order_by(Task.scheduled_time.asc())
+        .limit(limit)
+        .all()
+    )
 
     upcoming = []
     for task in tasks:
-        upcoming.append({
-            "task_id": task.id,
-            "task_name": task.name,
-            "schedule_type": task.schedule_type,
-            "cron": task.cron_expression if task.schedule_type == "cron" else f"{task.interval_seconds}s",
-            "next_run": task.scheduled_time
-        })
+        upcoming.append(
+            {
+                "task_id": task.id,
+                "task_name": task.name,
+                "schedule_type": task.schedule_type,
+                "cron": task.cron_expression
+                if task.schedule_type == "cron"
+                else f"{task.interval_seconds}s",
+                "next_run": task.scheduled_time,
+            }
+        )
 
     return {"items": upcoming}

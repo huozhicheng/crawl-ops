@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Column, BigInteger, String, Text, Integer, DateTime, DECIMAL, ForeignKey
+
+from sqlalchemy import DECIMAL, BigInteger, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -7,6 +8,7 @@ from app.core.database import Base
 
 class User(Base):
     """用户表"""
+
     __tablename__ = "users"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -23,6 +25,7 @@ class User(Base):
 
 class Role(Base):
     """角色表"""
+
     __tablename__ = "roles"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -34,6 +37,7 @@ class Role(Base):
 
 class UserRole(Base):
     """用户角色关联表"""
+
     __tablename__ = "user_roles"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -44,6 +48,7 @@ class UserRole(Base):
 
 class Project(Base):
     """项目表"""
+
     __tablename__ = "projects"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -66,6 +71,7 @@ class Project(Base):
 
 class Task(Base):
     """任务表"""
+
     __tablename__ = "tasks"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -102,6 +108,7 @@ class Task(Base):
 
 class TaskExecution(Base):
     """任务执行记录表"""
+
     __tablename__ = "task_executions"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -123,6 +130,7 @@ class TaskExecution(Base):
 
 class Node(Base):
     """节点表"""
+
     __tablename__ = "nodes"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -143,6 +151,7 @@ class Node(Base):
 
 class Proxy(Base):
     """代理表"""
+
     __tablename__ = "proxies"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -165,6 +174,7 @@ class Proxy(Base):
 
 class Venv(Base):
     """Python虚拟环境表"""
+
     __tablename__ = "venvs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -180,8 +190,10 @@ class Venv(Base):
 
     tasks = relationship("Task", back_populates="venv")
 
+
 class SystemConfig(Base):
     """系统配置表"""
+
     __tablename__ = "system_configs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -191,11 +203,9 @@ class SystemConfig(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
-
-
-
 class NotificationConfig(Base):
     """通知配置表"""
+
     __tablename__ = "notification_configs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -209,6 +219,7 @@ class NotificationConfig(Base):
 
 class NodeMetric(Base):
     """节点性能指标历史表"""
+
     __tablename__ = "node_metrics"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)

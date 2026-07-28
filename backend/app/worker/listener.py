@@ -1,20 +1,24 @@
-import os
-import time
 import json
-import socket
 import logging
+import os
 import signal
-import redis
+import socket
+import time
+from typing import Any, Dict
+
 import psutil
-from typing import Dict, Any
+import redis
 
 from app.core.config import settings
 from app.worker.executor import TaskExecutor
 from app.worker.syncer import ProjectSyncer
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - [WORKER] - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - [WORKER] - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 def _get_memory_usage() -> float:
     """
@@ -63,7 +67,7 @@ def _get_disk_usage() -> float:
     数据目录通常是独立挂载的 volume，更能反映实际使用情况。
     """
     try:
-        data_dir = getattr(settings, 'PROJECTS_DIR', '/app/data/projects')
+        data_dir = getattr(settings, "PROJECTS_DIR", "/app/data/projects")
         if os.path.exists(data_dir):
             return psutil.disk_usage(data_dir).percent
     except Exception:
@@ -102,13 +106,15 @@ class WorkerListener:
             return False
 
         try:
-            import requests
             import platform
+
+            import requests
+
             payload = {
                 "name": self.hostname,
                 "host": socket.gethostbyname(self.hostname),
                 "port": 0,
-                "os_type": platform.system()
+                "os_type": platform.system(),
             }
             logger.info(f"Registering to {url}...")
             resp = requests.post(
@@ -133,8 +139,9 @@ class WorkerListener:
         """Send heartbeats periodically"""
         master_url = os.environ.get("MASTER_URL", "http://backend:18081")
         url = f"{master_url}/api/v1/nodes/heartbeat"
-        import requests
         import platform
+
+        import requests
 
         while self.running:
             # 如果没有 token，尝试重新注册
@@ -159,7 +166,7 @@ class WorkerListener:
                 headers = {"X-Node-Token": self.token}
                 resp = requests.post(url, json=payload, headers=headers, timeout=5)
                 if resp.status_code != 200:
-                     logger.warning(f"Heartbeat failed: {resp.status_code}")
+                    logger.warning(f"Heartbeat failed: {resp.status_code}")
             except Exception as e:
                 logger.error(f"Heartbeat error: {e}")
 
@@ -167,7 +174,7 @@ class WorkerListener:
 
     def run(self):
         if not self.register():
-             logger.warning("Initial registration failed, will retry in loop/heartbeat")
+            logger.warning("Initial registration failed, will retry in loop/heartbeat")
 
         # P3: 启动时重试之前失败的回调
         retry_count = TaskExecutor.retry_failed_callbacks()
@@ -176,6 +183,7 @@ class WorkerListener:
 
         # Start heartbeat thread
         import threading
+
         hb_thread = threading.Thread(target=self.heartbeat_loop)
         hb_thread.daemon = True
         hb_thread.start()
@@ -210,12 +218,13 @@ class WorkerListener:
         project_path = os.path.join(settings.PROJECTS_DIR, project_code)
 
         if not self.syncer.sync(project_code, project_path, self.token):
-             logger.error(f"Failed to sync project {project_code}")
-             # TODO: Report failure to Master API
-             return
+            logger.error(f"Failed to sync project {project_code}")
+            # TODO: Report failure to Master API
+            return
 
         # 2. 执行任务
         self.executor.execute(payload, project_path)
+
 
 if __name__ == "__main__":
     worker = WorkerListener()

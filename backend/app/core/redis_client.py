@@ -4,6 +4,7 @@ Redis 连接管理模块
 提供 Redis 连接池单例，避免重复创建连接。
 """
 import redis
+
 from app.core.config import settings
 
 # Redis 连接池单例
@@ -19,9 +20,7 @@ def get_redis_client() -> redis.Redis:
     global _redis_client
     if _redis_client is None:
         _redis_client = redis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            max_connections=10
+            settings.REDIS_URL, decode_responses=True, max_connections=10
         )
     return _redis_client
 

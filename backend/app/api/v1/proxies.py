@@ -1,12 +1,13 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy.orm import Session
-from typing import Optional
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.core.config import settings
-from app.schemas import ProxyResponse, ProxyListResponse, ProxyCreate, ProxyImport
+from app.core.database import get_db
+from app.schemas import ProxyCreate, ProxyImport, ProxyListResponse, ProxyResponse
 from app.services import proxy_service
 
 router = APIRouter()
@@ -23,7 +24,7 @@ async def get_proxies(
     protocol: Optional[str] = None,
     status: Optional[int] = None,
     min_score: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取代理列表"""
     items, total = proxy_service.get_list(db, page, page_size, protocol, status, min_score)
@@ -31,7 +32,7 @@ async def get_proxies(
         items=[ProxyResponse.model_validate(p) for p in items],
         total=total,
         page=page,
-        page_size=page_size
+        page_size=page_size,
     )
 
 
@@ -40,7 +41,7 @@ async def get_available_proxy(
     protocol: Optional[str] = None,
     count: int = Query(1, ge=1, le=10),
     format: str = Query("json"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """获取可用代理"""
     proxies = proxy_service.get_available(db, protocol, count)
@@ -125,8 +126,9 @@ async def trigger_crawl(db: Session = Depends(get_db)):
             status_code=403,
             detail="代理源采集默认关闭；请确认来源条款与适用法律后设置 PROXY_CRAWLING_ENABLED=true",
         )
-    from app.services.proxy_crawler import proxy_crawler_manager
     import asyncio
+
+    from app.services.proxy_crawler import proxy_crawler_manager
 
     # 异步执行采集
     proxies = await proxy_crawler_manager.crawl_all()
@@ -135,10 +137,6 @@ async def trigger_crawl(db: Session = Depends(get_db)):
         return {"message": "未采集到任何代理", "count": 0}
 
     # 入库
-    count = proxy_service.bulk_create(
-        db,
-        [f"{p.ip}:{p.port}" for p in proxies],
-        protocol="http"
-    )
+    count = proxy_service.bulk_create(db, [f"{p.ip}:{p.port}" for p in proxies], protocol="http")
 
     return {"message": "采集完成", "total": len(proxies), "new": count}

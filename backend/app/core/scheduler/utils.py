@@ -1,9 +1,9 @@
 """
 调度器工具函数
 """
+import random
 from datetime import datetime, timedelta
 from typing import Optional
-import random
 
 from loguru import logger
 
@@ -18,20 +18,20 @@ def get_job_next_run_time(job, scheduler_timezone=None) -> Optional[datetime]:
     import pytz
 
     # 优先使用 job.next_run_time
-    next_run_time = getattr(job, 'next_run_time', None)
+    next_run_time = getattr(job, "next_run_time", None)
 
     # 如果没有，尝试从 trigger 计算
-    if not next_run_time and hasattr(job, 'trigger'):
+    if not next_run_time and hasattr(job, "trigger"):
         try:
             # 使用带时区的 now 避免 offset-naive/aware 比较错误
-            tz = scheduler_timezone or pytz.timezone('Asia/Shanghai')
+            tz = scheduler_timezone or pytz.timezone("Asia/Shanghai")
             now = datetime.now(tz)
             next_run_time = job.trigger.get_next_fire_time(None, now)
         except Exception as e:
             logger.warning(f"Failed to calculate next run time: {e}")
 
     # 转换为 naive datetime (移除时区信息)
-    if next_run_time and hasattr(next_run_time, 'replace'):
+    if next_run_time and hasattr(next_run_time, "replace"):
         if next_run_time.tzinfo is not None:
             next_run_time = next_run_time.replace(tzinfo=None)
 

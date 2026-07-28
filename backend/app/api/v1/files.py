@@ -3,11 +3,13 @@ import shutil
 import zipfile
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Query
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+
 from app.core.config import settings
+from app.core.database import get_db
 from app.services.project_service import project_service
 
 router = APIRouter()
@@ -24,6 +26,18 @@ def validate_path(project_path: str, relative_path: str) -> str:
     return target_path
 
 
+def validate_upload_filename(filename: Optional[str]) -> str:
+    """仅允许上传单个文件名，避免文件名被当作路径使用。"""
+    if not filename or filename in {".", ".."}:
+        raise HTTPException(status_code=400, detail="文件名无效")
+
+    # 在 Unix 容器中，反斜杠不是路径分隔符；仍需拒绝它以避免跨平台绕过。
+    if "/" in filename or "\\" in filename or "\x00" in filename:
+        raise HTTPException(status_code=400, detail="文件名不能包含路径")
+
+    return filename
+
+
 def safe_extract_zip(zip_file: zipfile.ZipFile, destination: str) -> None:
     """逐项解压，并阻止 Zip Slip 写入目标目录之外。"""
     destination_root = os.path.realpath(destination)
@@ -36,9 +50,7 @@ def safe_extract_zip(zip_file: zipfile.ZipFile, destination: str) -> None:
 
 @router.post("/upload/project/{project_id}")
 async def upload_project_file(
-    project_id: int,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
 ):
     """上传项目文件（支持zip）"""
     project = project_service.get_by_id(db, project_id)
@@ -64,7 +76,7 @@ async def upload_project_file(
             shutil.copyfileobj(file.file, buffer)
 
         # 解压
-        with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
+        with zipfile.ZipFile(temp_zip, "r") as zip_ref:
             safe_extract_zip(zip_ref, project_path)
 
     except Exception as e:
@@ -78,9 +90,7 @@ async def upload_project_file(
 
 @router.get("/project/{project_id}/list")
 async def list_project_files(
-    project_id: int,
-    path: str = Query("", description="相对路径"),
-    db: Session = Depends(get_db)
+    project_id: int, path: str = Query("", description="相对路径"), db: Session = Depends(get_db)
 ):
     """列出项目文件和目录"""
     project = project_service.get_by_id(db, project_id)
@@ -110,13 +120,15 @@ async def list_project_files(
                 stat = os.stat(item_path)
                 is_dir = os.path.isdir(item_path)
 
-                files.append({
-                    "name": item,
-                    "type": "directory" if is_dir else "file",
-                    "size": 0 if is_dir else stat.st_size,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "path": os.path.join(path, item).replace("\\", "/")
-                })
+                files.append(
+                    {
+                        "name": item,
+                        "type": "directory" if is_dir else "file",
+                        "size": 0 if is_dir else stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        "path": os.path.join(path, item).replace("\\", "/"),
+                    }
+                )
             except Exception:
                 continue
 
@@ -126,18 +138,12 @@ async def list_project_files(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取目录失败: {str(e)}")
 
-    return {
-        "files": files,
-        "path": path,
-        "project_code": project.code
-    }
+    return {"files": files, "path": path, "project_code": project.code}
 
 
 @router.get("/project/{project_id}/download")
 async def download_project_file(
-    project_id: int,
-    path: str = Query(..., description="文件相对路径"),
-    db: Session = Depends(get_db)
+    project_id: int, path: str = Query(..., description="文件相对路径"), db: Session = Depends(get_db)
 ):
     """下载项目中的单个文件"""
     project = project_service.get_by_id(db, project_id)
@@ -154,18 +160,12 @@ async def download_project_file(
         raise HTTPException(status_code=400, detail="不能下载目录")
 
     filename = os.path.basename(target_path)
-    return FileResponse(
-        path=target_path,
-        filename=filename,
-        media_type="application/octet-stream"
-    )
+    return FileResponse(path=target_path, filename=filename, media_type="application/octet-stream")
 
 
 @router.get("/project/{project_id}/view")
 async def view_project_file(
-    project_id: int,
-    path: str = Query(..., description="文件相对路径"),
-    db: Session = Depends(get_db)
+    project_id: int, path: str = Query(..., description="文件相对路径"), db: Session = Depends(get_db)
 ):
     """预览项目文件内容（文本文件）"""
     project = project_service.get_by_id(db, project_id)
@@ -188,14 +188,14 @@ async def view_project_file(
 
     try:
         # 尝试以文本方式读取
-        with open(target_path, 'r', encoding='utf-8') as f:
+        with open(target_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         return {
             "content": content,
             "filename": os.path.basename(target_path),
             "size": file_size,
-            "path": path
+            "path": path,
         }
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="文件不是文本格式，无法预览")
@@ -208,7 +208,7 @@ async def upload_single_file(
     project_id: int,
     path: str = Query("", description="目标目录相对路径"),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """上传单个文件到指定目录"""
     project = project_service.get_by_id(db, project_id)
@@ -225,8 +225,8 @@ async def upload_single_file(
     if not os.path.isdir(target_dir):
         raise HTTPException(status_code=400, detail="目标路径不是目录")
 
-    # 保存文件
-    file_path = os.path.join(target_dir, file.filename)
+    filename = validate_upload_filename(file.filename)
+    file_path = validate_path(project_path, os.path.join(path, filename))
 
     try:
         with open(file_path, "wb") as buffer:
@@ -234,8 +234,8 @@ async def upload_single_file(
 
         return {
             "message": "上传成功",
-            "filename": file.filename,
-            "path": os.path.join(path, file.filename).replace("\\", "/")
+            "filename": filename,
+            "path": os.path.join(path, filename).replace("\\", "/"),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
@@ -246,7 +246,7 @@ async def save_project_file(
     project_id: int,
     path: str = Query(..., description="文件相对路径"),
     content: dict = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """保存文件内容（在线编辑）"""
     if not content or "content" not in content:
@@ -265,22 +265,17 @@ async def save_project_file(
         os.makedirs(parent_dir, exist_ok=True)
 
     try:
-        with open(target_path, 'w', encoding='utf-8') as f:
+        with open(target_path, "w", encoding="utf-8") as f:
             f.write(content["content"])
 
-        return {
-            "message": "保存成功",
-            "path": path
-        }
+        return {"message": "保存成功", "path": path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"保存失败: {str(e)}")
 
 
 @router.delete("/project/{project_id}")
 async def delete_project_file(
-    project_id: int,
-    path: str = Query(..., description="文件/目录相对路径"),
-    db: Session = Depends(get_db)
+    project_id: int, path: str = Query(..., description="文件/目录相对路径"), db: Session = Depends(get_db)
 ):
     """删除项目文件或目录"""
     project = project_service.get_by_id(db, project_id)
@@ -297,7 +292,7 @@ async def delete_project_file(
         raise HTTPException(status_code=404, detail="文件或目录不存在")
 
     # 禁止删除某些重要文件/目录
-    forbidden = ['.git', '.env']
+    forbidden = [".git", ".env"]
     basename = os.path.basename(target_path)
     if basename in forbidden:
         raise HTTPException(status_code=403, detail=f"禁止删除 {basename}")
@@ -315,9 +310,7 @@ async def delete_project_file(
 
 @router.get("/project/{project_id}/search")
 async def search_project_files(
-    project_id: int,
-    keyword: str = Query(..., description="搜索关键词"),
-    db: Session = Depends(get_db)
+    project_id: int, keyword: str = Query(..., description="搜索关键词"), db: Session = Depends(get_db)
 ):
     """搜索项目文件（按文件名）"""
     project = project_service.get_by_id(db, project_id)
@@ -335,7 +328,7 @@ async def search_project_files(
     try:
         for root, dirs, files in os.walk(project_path):
             # 跳过某些目录
-            dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'node_modules', '.venv']]
+            dirs[:] = [d for d in dirs if d not in [".git", "__pycache__", "node_modules", ".venv"]]
 
             for filename in files:
                 if keyword_lower in filename.lower():
@@ -343,12 +336,14 @@ async def search_project_files(
                     relative_path = os.path.relpath(file_path, project_path).replace("\\", "/")
                     stat = os.stat(file_path)
 
-                    results.append({
-                        "name": filename,
-                        "path": relative_path,
-                        "size": stat.st_size,
-                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
-                    })
+                    results.append(
+                        {
+                            "name": filename,
+                            "path": relative_path,
+                            "size": stat.st_size,
+                            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        }
+                    )
 
         return {"results": results, "keyword": keyword, "count": len(results)}
     except Exception as e:

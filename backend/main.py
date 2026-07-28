@@ -31,7 +31,7 @@ app = FastAPI(
     description="分布式采集任务控制与运维平台 API",
     version="1.0.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS配置
