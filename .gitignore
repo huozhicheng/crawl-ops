@@ -1,0 +1,36 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Runtime data and logs
+data/
+*.log
+*.sqlite
+*.db
+test.db
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage*
+htmlcov/
+venv/
+.venv/
+
+# Node.js
+node_modules/
+dist/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store

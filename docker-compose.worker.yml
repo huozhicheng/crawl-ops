@@ -1,0 +1,26 @@
+services:
+  # 通过 --scale worker=N 按需启动多个 Worker 实例。
+  worker:
+    image: crawl-ops-backend:latest
+    command: python -m app.worker.listener
+    environment:
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?必须设置 REDIS_PASSWORD}@redis:6379/0"
+      MASTER_URL: "http://backend:18081"
+      WORKER_REGISTRATION_TOKEN: "crawlops-local-worker"
+    volumes:
+      - ./data/projects:/app/data/projects
+      - ./data/logs:/app/data/logs
+      - ./data/venvs:/app/data/venvs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis, os; redis.from_url(os.environ['REDIS_URL']).ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
