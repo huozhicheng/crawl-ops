@@ -17,7 +17,7 @@ pydantic[email]==2.5.3
 pydantic-settings==2.1.0
 
 # Scheduler
-apscheduler==3.10.4
+apscheduler==3.11.3
 
 # Utils
 httpx==0.26.0
