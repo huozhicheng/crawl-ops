@@ -152,8 +152,11 @@ async def download_project_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -176,8 +179,11 @@ async def view_project_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -260,8 +266,11 @@ async def save_project_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     # 确保父目录存在
     parent_dir = os.path.dirname(target_path)
@@ -291,8 +300,11 @@ async def delete_project_file(
     if not path or path == "/" or path == ".":
         raise HTTPException(status_code=400, detail="不能删除根目录")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件或目录不存在")
