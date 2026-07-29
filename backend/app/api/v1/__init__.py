@@ -48,3 +48,4 @@ api_router.include_router(protected_router)
 # Worker 不使用用户登录：注册使用部署令牌，后续请求使用节点令牌。
 api_router.include_router(nodes.worker_router, prefix="/nodes", tags=["Worker"])
 api_router.include_router(projects.worker_router, prefix="/projects", tags=["Worker"])
+api_router.include_router(executions.worker_router, prefix="/executions", tags=["Worker"])

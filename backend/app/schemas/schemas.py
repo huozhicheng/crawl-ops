@@ -67,7 +67,9 @@ class RefreshRequest(BaseModel):
 # ===== 项目相关 =====
 class ProjectBase(BaseModel):
     name: str
-    code: str
+    code: str = Field(
+        ..., pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,49}$", description="项目的安全目录标识"
+    )
     description: Optional[str] = None
     type: str = "python"
     source_type: str = "upload"

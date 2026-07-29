@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.path_security import UnsafePathError, resolve_within_directory
 from app.services.project_service import project_service
 
 router = APIRouter()
@@ -17,13 +18,18 @@ router = APIRouter()
 
 def validate_path(project_path: str, relative_path: str) -> str:
     """验证路径安全性，防止路径穿越攻击"""
-    project_root = os.path.realpath(project_path)
-    target_path = os.path.realpath(os.path.join(project_root, relative_path or ""))
-
-    # 必须在规范化后校验，并附加路径分隔符，避免 /projects/a 与 /projects/abc 混淆。
-    if target_path != project_root and not target_path.startswith(project_root + os.sep):
+    try:
+        return str(resolve_within_directory(project_path, relative_path))
+    except UnsafePathError as exc:
         raise HTTPException(status_code=400, detail="非法路径")
-    return target_path
+
+
+def get_project_path(project_code: str) -> str:
+    """返回受控项目目录，项目代码不能影响上级目录。"""
+    try:
+        return str(resolve_within_directory(settings.PROJECTS_DIR, project_code, allow_root=False))
+    except UnsafePathError as exc:
+        raise HTTPException(status_code=500, detail="项目目录配置无效") from exc
 
 
 def validate_upload_filename(filename: Optional[str]) -> str:
@@ -40,12 +46,12 @@ def validate_upload_filename(filename: Optional[str]) -> str:
 
 def safe_extract_zip(zip_file: zipfile.ZipFile, destination: str) -> None:
     """逐项解压，并阻止 Zip Slip 写入目标目录之外。"""
-    destination_root = os.path.realpath(destination)
     for member in zip_file.infolist():
-        target_path = os.path.realpath(os.path.join(destination_root, member.filename))
-        if os.path.commonpath([destination_root, target_path]) != destination_root:
+        try:
+            resolve_within_directory(destination, member.filename)
+        except UnsafePathError as exc:
             raise HTTPException(status_code=400, detail="压缩包包含非法路径")
-        zip_file.extract(member, destination_root)
+        zip_file.extract(member, destination)
 
 
 @router.post("/upload/project/{project_id}")
@@ -63,7 +69,7 @@ async def upload_project_file(
     if not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="仅支持zip文件")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
+    project_path = get_project_path(project.code)
 
     # 确保目录存在
     if not os.path.exists(project_path):
@@ -97,7 +103,7 @@ async def list_project_files(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
+    project_path = get_project_path(project.code)
 
     # 确保项目目录存在
     if not os.path.exists(project_path):
@@ -152,11 +158,8 @@ async def download_project_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
-    project_root = project_path + os.sep
-    target_path = os.path.realpath(os.path.join(project_root, path))
-    if not target_path.startswith(project_root):
-        raise HTTPException(status_code=400, detail="非法路径")
+    project_path = get_project_path(project.code)
+    target_path = validate_path(project_path, path)
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -179,11 +182,8 @@ async def view_project_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
-    project_root = project_path + os.sep
-    target_path = os.path.realpath(os.path.join(project_root, path))
-    if not target_path.startswith(project_root):
-        raise HTTPException(status_code=400, detail="非法路径")
+    project_path = get_project_path(project.code)
+    target_path = validate_path(project_path, path)
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -225,7 +225,7 @@ async def upload_single_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
+    project_path = get_project_path(project.code)
     target_dir = validate_path(project_path, path)
 
     # 确保目标目录存在
@@ -266,11 +266,8 @@ async def save_project_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
-    project_root = project_path + os.sep
-    target_path = os.path.realpath(os.path.join(project_root, path))
-    if not target_path.startswith(project_root):
-        raise HTTPException(status_code=400, detail="非法路径")
+    project_path = get_project_path(project.code)
+    target_path = validate_path(project_path, path)
 
     # 确保父目录存在
     parent_dir = os.path.dirname(target_path)
@@ -300,11 +297,8 @@ async def delete_project_file(
     if not path or path == "/" or path == ".":
         raise HTTPException(status_code=400, detail="不能删除根目录")
 
-    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
-    project_root = project_path + os.sep
-    target_path = os.path.realpath(os.path.join(project_root, path))
-    if not target_path.startswith(project_root):
-        raise HTTPException(status_code=400, detail="非法路径")
+    project_path = get_project_path(project.code)
+    target_path = validate_path(project_path, path)
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件或目录不存在")
@@ -337,7 +331,7 @@ async def search_project_files(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
+    project_path = get_project_path(project.code)
 
     if not os.path.exists(project_path):
         return {"results": [], "keyword": keyword}

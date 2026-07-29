@@ -1,12 +1,24 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.path_security import resolve_within_directory
+from app.services.node_service import node_service
 from app.services.task_service import execution_service
 
 router = APIRouter()
+worker_router = APIRouter()
+
+
+def get_worker_node(x_node_token: str, db: Session):
+    """验证 Worker 节点令牌，并返回对应节点。"""
+    node = node_service.get_by_token(db, x_node_token)
+    if not node or node.deleted:
+        raise HTTPException(status_code=401, detail="无效的节点令牌")
+    return node
 
 
 @router.get("")
@@ -105,7 +117,9 @@ async def get_execution_logs(
 
     from app.core.config import settings
 
-    log_path = os.path.join(settings.LOGS_DIR, "executions", f"{execution_id}.log")
+    log_path = resolve_within_directory(
+        os.path.join(settings.LOGS_DIR, "executions"), f"{execution_id:d}.log", allow_root=False
+    )
     if not os.path.exists(log_path):
         return {"content": "", "total_lines": 0, "loaded_lines": 0, "has_more": False}
 
@@ -149,9 +163,10 @@ async def get_execution_logs(
             "start_line": start_idx + 1,
             "has_more": start_idx > 0,
         }
-    except Exception as e:
+    except (OSError, UnicodeError):
+        logger.exception("读取执行日志失败")
         return {
-            "content": f"读取日志失败: {str(e)}",
+            "content": "读取日志失败，请检查服务日志",
             "total_lines": 0,
             "loaded_lines": 0,
             "has_more": False,
@@ -201,17 +216,18 @@ async def stop_execution(execution_id: int, db: Session = Depends(get_db)):
     return {"message": "停止信号已发送"}
 
 
-@router.post("/{execution_id}/start")
+@worker_router.post("/{execution_id}/start")
 async def start_execution(
-    execution_id: int, node_id: Optional[int] = None, db: Session = Depends(get_db)
+    execution_id: int,
+    x_node_token: str = Header(..., alias="X-Node-Token"),
+    db: Session = Depends(get_db),
 ):
     """
     Worker 回调接口 - 标记执行开始
     将状态从 pending 更新为 running，并记录执行节点
     """
-    from loguru import logger
-
-    logger.info(f"收到执行开始通知: execution_id={execution_id}, node_id={node_id}")
+    node = get_worker_node(x_node_token, db)
+    logger.info(f"收到执行开始通知: execution_id={execution_id}, node_id={node.id}")
 
     item = execution_service.get_by_id(db, execution_id)
     if not item:
@@ -220,10 +236,9 @@ async def start_execution(
     # 只有 pending 状态才能转为 running
     if item.status == "pending":
         item.status = "running"
-        if node_id:
-            item.node_id = node_id  # 记录执行该任务的 Worker 节点
+        item.node_id = node.id
         db.commit()
-        logger.info(f"执行 {execution_id} 状态更新为 running, node_id={node_id}")
+        logger.info(f"执行 {execution_id} 状态更新为 running, node_id={node.id}")
     else:
         logger.warning(f"执行 {execution_id} 当前状态为 {item.status}，跳过 start 更新")
 
@@ -239,9 +254,12 @@ class ExecutionCallback(BaseModel):
     error_message: Optional[str] = None
 
 
-@router.post("/{execution_id}/callback")
+@worker_router.post("/{execution_id}/callback")
 async def execution_callback(
-    execution_id: int, data: ExecutionCallback, db: Session = Depends(get_db)
+    execution_id: int,
+    data: ExecutionCallback,
+    x_node_token: str = Header(..., alias="X-Node-Token"),
+    db: Session = Depends(get_db),
 ):
     """
     Worker 回调接口 - 更新执行状态
@@ -249,11 +267,14 @@ async def execution_callback(
     """
     from datetime import datetime, timedelta
 
-    from loguru import logger
-
+    node = get_worker_node(x_node_token, db)
     item = execution_service.get_by_id(db, execution_id)
     if not item:
         raise HTTPException(status_code=404, detail="Execution not found")
+    if item.node_id is not None and item.node_id != node.id:
+        raise HTTPException(status_code=403, detail="节点无权更新该执行记录")
+    if item.node_id is None:
+        item.node_id = node.id
 
     # 如果已经是终态（stopped/timeout），不允许被覆盖
     if item.status in ("stopped", "timeout"):

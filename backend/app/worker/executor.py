@@ -6,7 +6,7 @@ import socket
 import subprocess
 import time
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from app.core.config import settings
 
@@ -29,6 +29,8 @@ class TaskExecutor:
 
         # 从 task_payload 获取 node_id（由 listener 注入）
         node_id = task_payload.get("node_id")
+        node_token = task_payload.get("node_token")
+        worker_headers = {"X-Node-Token": node_token} if node_token else None
 
         # 立即通知 Master 任务已开始执行（状态 pending → running）
         master_url = os.environ.get("MASTER_URL", "http://backend:18081")
@@ -36,8 +38,7 @@ class TaskExecutor:
         try:
             import requests
 
-            params = {"node_id": node_id} if node_id else {}
-            resp = requests.post(start_url, params=params, timeout=5)
+            resp = requests.post(start_url, headers=worker_headers, timeout=5)
             if resp.status_code == 200:
                 logger.info(f"Notified Master: execution {execution_id} started on node {node_id}")
             else:
@@ -326,7 +327,7 @@ class TaskExecutor:
                         f"Process exited with code {exit_code}" if exit_code != 0 else None
                     ),
                 }
-            self._send_callback_with_retry(callback_url, payload)
+            self._send_callback_with_retry(callback_url, payload, headers=worker_headers)
 
         except Exception as e:
             logger.error(f"Execution failed: {e}")
@@ -334,7 +335,7 @@ class TaskExecutor:
             master_url = os.environ.get("MASTER_URL", "http://backend:18081")
             callback_url = f"{master_url}/api/v1/executions/{execution_id}/callback"
             payload = {"status": "failed", "exit_code": 1, "error_message": str(e)}
-            self._send_callback_with_retry(callback_url, payload)
+            self._send_callback_with_retry(callback_url, payload, headers=worker_headers)
         finally:
             # 始终清理 PID 文件
             if os.path.exists(pid_file):
@@ -344,7 +345,12 @@ class TaskExecutor:
                     logger.warning(f"Failed to remove PID file: {e}")
 
     def _send_callback_with_retry(
-        self, url: str, payload: Dict[str, Any], max_retries: int = None, base_delay: float = None
+        self,
+        url: str,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+        max_retries: int = None,
+        base_delay: float = None,
     ) -> bool:
         """
         发送回调请求（带重试机制）
@@ -368,12 +374,16 @@ class TaskExecutor:
 
         for attempt in range(max_retries + 1):
             try:
-                response = requests.post(url, json=payload, timeout=10)
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
                 if response.status_code == 200:
                     logger.info(f"Callback sent successfully to {url}")
                     return True
-                else:
-                    logger.warning(f"Callback returned status {response.status_code}")
+                logger.warning(f"Callback returned status {response.status_code}")
+                if 400 <= response.status_code < 500 and response.status_code not in (408, 429):
+                    logger.error(
+                        "Callback request is invalid or unauthorized; it will not be retried"
+                    )
+                    return False
             except Exception as e:
                 logger.warning(f"Callback attempt {attempt + 1}/{max_retries + 1} failed: {e}")
 
@@ -387,10 +397,12 @@ class TaskExecutor:
         logger.error(
             f"Failed to send callback after {max_retries + 1} attempts, persisting for later retry"
         )
-        self._persist_failed_callback(url, payload)
+        self._persist_failed_callback(url, payload, headers)
         return False
 
-    def _persist_failed_callback(self, url: str, payload: Dict[str, Any]) -> None:
+    def _persist_failed_callback(
+        self, url: str, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None
+    ) -> None:
         """
         持久化失败的回调到本地文件
         网络恢复后可由 retry_failed_callbacks 方法重试
@@ -403,6 +415,7 @@ class TaskExecutor:
         callback_data = {
             "url": url,
             "payload": payload,
+            "node_token": headers.get("X-Node-Token") if headers else None,
             "timestamp": datetime.now().isoformat(),
             "retry_count": 0,
         }
@@ -416,7 +429,7 @@ class TaskExecutor:
             logger.error(f"Failed to persist callback: {e}")
 
     @staticmethod
-    def retry_failed_callbacks() -> int:
+    def retry_failed_callbacks(node_token: Optional[str] = None) -> int:
         """
         重试所有失败的回调（Worker 启动时调用）
 
@@ -473,11 +486,19 @@ class TaskExecutor:
                 url = callback_data["url"]
                 payload = callback_data["payload"]
 
-                response = requests.post(url, json=payload, timeout=10)
+                callback_token = callback_data.get("node_token") or node_token
+                headers = {"X-Node-Token": callback_token} if callback_token else None
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
                 if response.status_code == 200:
                     os.remove(file_path)
                     success_count += 1
                     logger.info(f"Retried callback successfully: {url}")
+                elif 400 <= response.status_code < 500 and response.status_code not in (408, 429):
+                    os.remove(file_path)
+                    logger.error(
+                        f"Discarded invalid or unauthorized callback: {file_path} "
+                        f"(status {response.status_code})"
+                    )
                 else:
                     # 更新重试次数
                     callback_data["retry_count"] = retry_count + 1

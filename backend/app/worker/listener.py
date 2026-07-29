@@ -177,7 +177,7 @@ class WorkerListener:
             logger.warning("Initial registration failed, will retry in loop/heartbeat")
 
         # P3: 启动时重试之前失败的回调
-        retry_count = TaskExecutor.retry_failed_callbacks()
+        retry_count = TaskExecutor.retry_failed_callbacks(self.token)
         if retry_count > 0:
             logger.info(f"Startup: retried {retry_count} failed callbacks")
 
@@ -210,8 +210,9 @@ class WorkerListener:
         task_id = payload.get("task_id")
         logger.info(f"Received task {task_id} (Execution {execution_id})")
 
-        # 注入 node_id 到 payload，供 executor 使用
+        # 注入节点身份，供 Worker 回调时进行服务端鉴权。
         payload["node_id"] = self.node_id
+        payload["node_token"] = self.token
 
         # 1. 同步代码
         project_code = payload.get("project_code")
