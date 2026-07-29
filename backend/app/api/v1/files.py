@@ -115,12 +115,11 @@ async def list_project_files(
         raise HTTPException(status_code=400, detail="非法路径")
 
     project_root = os.path.realpath(project_path)
-    if path:
-        target_path = os.path.realpath(os.path.join(project_root, path))
-        if not target_path.startswith(project_root + os.sep):
-            raise HTTPException(status_code=400, detail="非法路径")
-    else:
-        target_path = project_root
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
+    if target_path != project_root and not target_path.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="路径不存在")
@@ -252,12 +251,11 @@ async def upload_single_file(
         raise HTTPException(status_code=400, detail="非法路径")
 
     project_root = os.path.realpath(project_path)
-    if path:
-        target_dir = os.path.realpath(os.path.join(project_root, path))
-        if not target_dir.startswith(project_root + os.sep):
-            raise HTTPException(status_code=400, detail="非法路径")
-    else:
-        target_dir = project_root
+    target_dir = os.path.realpath(os.path.join(project_root, path))
+    if not target_dir.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
+    if target_dir != project_root and not target_dir.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     # 确保目标目录存在
     if not os.path.exists(target_dir):
