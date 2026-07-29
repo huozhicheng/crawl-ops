@@ -7,6 +7,7 @@
 - 采集任务：每10分钟执行一次
 - 验证任务：每5分钟执行一次
 """
+
 import asyncio
 import re
 from abc import ABC, abstractmethod

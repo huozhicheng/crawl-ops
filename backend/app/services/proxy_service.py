@@ -119,7 +119,7 @@ class ProxyService:
 
         proxy_url = f"{proxy.protocol}://{proxy.ip}:{proxy.port}"
         try:
-            with httpx.Client(proxies={"all://": proxy_url}, timeout=10) as client:
+            with httpx.Client(proxy=proxy_url, timeout=10) as client:
                 start = datetime.now()
                 response = client.get("http://httpbin.org/ip")
                 end = datetime.now()
@@ -148,7 +148,7 @@ class ProxyService:
 
         proxy_url = f"{proxy.protocol}://{proxy.ip}:{proxy.port}"
         try:
-            async with httpx.AsyncClient(proxies={"all://": proxy_url}, timeout=10) as client:
+            async with httpx.AsyncClient(proxy=proxy_url, timeout=10) as client:
                 start = datetime.now()
                 response = await client.get("http://httpbin.org/ip")
                 end = datetime.now()

@@ -20,8 +20,8 @@ def validate_path(project_path: str, relative_path: str) -> str:
     project_root = os.path.realpath(project_path)
     target_path = os.path.realpath(os.path.join(project_root, relative_path or ""))
 
-    # 使用 commonpath，而不是字符串前缀，避免 /projects/a 与 /projects/abc 混淆。
-    if os.path.commonpath([project_root, target_path]) != project_root:
+    # 必须在规范化后校验，并附加路径分隔符，避免 /projects/a 与 /projects/abc 混淆。
+    if target_path != project_root and not target_path.startswith(project_root + os.sep):
         raise HTTPException(status_code=400, detail="非法路径")
     return target_path
 
@@ -143,15 +143,20 @@ async def list_project_files(
 
 @router.get("/project/{project_id}/download")
 async def download_project_file(
-    project_id: int, path: str = Query(..., description="文件相对路径"), db: Session = Depends(get_db)
+    project_id: int,
+    path: str = Query(..., description="文件相对路径"),
+    db: Session = Depends(get_db),
 ):
     """下载项目中的单个文件"""
     project = project_service.get_by_id(db, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -165,15 +170,20 @@ async def download_project_file(
 
 @router.get("/project/{project_id}/view")
 async def view_project_file(
-    project_id: int, path: str = Query(..., description="文件相对路径"), db: Session = Depends(get_db)
+    project_id: int,
+    path: str = Query(..., description="文件相对路径"),
+    db: Session = Depends(get_db),
 ):
     """预览项目文件内容（文本文件）"""
     project = project_service.get_by_id(db, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -256,8 +266,11 @@ async def save_project_file(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     # 确保父目录存在
     parent_dir = os.path.dirname(target_path)
@@ -275,7 +288,9 @@ async def save_project_file(
 
 @router.delete("/project/{project_id}")
 async def delete_project_file(
-    project_id: int, path: str = Query(..., description="文件/目录相对路径"), db: Session = Depends(get_db)
+    project_id: int,
+    path: str = Query(..., description="文件/目录相对路径"),
+    db: Session = Depends(get_db),
 ):
     """删除项目文件或目录"""
     project = project_service.get_by_id(db, project_id)
@@ -285,8 +300,11 @@ async def delete_project_file(
     if not path or path == "/" or path == ".":
         raise HTTPException(status_code=400, detail="不能删除根目录")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project.code)
-    target_path = validate_path(project_path, path)
+    project_path = os.path.realpath(os.path.join(settings.PROJECTS_DIR, project.code))
+    project_root = project_path + os.sep
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件或目录不存在")
@@ -310,7 +328,9 @@ async def delete_project_file(
 
 @router.get("/project/{project_id}/search")
 async def search_project_files(
-    project_id: int, keyword: str = Query(..., description="搜索关键词"), db: Session = Depends(get_db)
+    project_id: int,
+    keyword: str = Query(..., description="搜索关键词"),
+    db: Session = Depends(get_db),
 ):
     """搜索项目文件（按文件名）"""
     project = project_service.get_by_id(db, project_id)

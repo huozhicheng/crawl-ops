@@ -3,6 +3,7 @@
 
 提供通知渠道配置CRUD和测试发送功能。
 """
+
 import json
 from typing import List, Optional
 
@@ -163,7 +164,9 @@ async def create_config(data: NotificationConfigCreate, db: Session = Depends(ge
     # 验证类型
     valid_types = [t.value for t in NotificationType]
     if data.type not in valid_types:
-        raise HTTPException(status_code=400, detail=f"不支持的通知类型，支持: {', '.join(valid_types)}")
+        raise HTTPException(
+            status_code=400, detail=f"不支持的通知类型，支持: {', '.join(valid_types)}"
+        )
 
     config = create_notification_config(
         db,
@@ -205,7 +208,9 @@ async def test_notification(data: NotificationTestRequest):
     # 验证类型
     valid_types = [t.value for t in NotificationType]
     if data.type not in valid_types:
-        raise HTTPException(status_code=400, detail=f"不支持的通知类型，支持: {', '.join(valid_types)}")
+        raise HTTPException(
+            status_code=400, detail=f"不支持的通知类型，支持: {', '.join(valid_types)}"
+        )
 
     result = await notification_service.send_notification(
         notify_type=data.type,

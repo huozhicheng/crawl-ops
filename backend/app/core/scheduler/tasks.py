@@ -3,6 +3,7 @@
 
 包含代理采集、代理验证、节点检测等系统级定时任务。
 """
+
 from datetime import datetime, timedelta
 
 from loguru import logger
@@ -167,7 +168,9 @@ async def clean_stale_executions() -> None:
                 execution.end_time = now
                 execution.duration = int((now - execution.start_time).total_seconds())
                 timeout_execution_ids.append(execution.id)
-                logger.warning(f"执行 {execution.id} 执行超时 (>{timeout_seconds}秒)，标记为 timeout")
+                logger.warning(
+                    f"执行 {execution.id} 执行超时 (>{timeout_seconds}秒)，标记为 timeout"
+                )
 
         if stale_pending or timeout_execution_ids:
             db.commit()

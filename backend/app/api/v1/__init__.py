@@ -35,7 +35,9 @@ protected_router.include_router(executions.router, prefix="/executions", tags=["
 protected_router.include_router(nodes.router, prefix="/nodes", tags=["节点管理"])
 protected_router.include_router(proxies.router, prefix="/proxies", tags=["代理池"])
 protected_router.include_router(dashboard.router, prefix="/dashboard", tags=["仪表盘"])
-protected_router.include_router(notifications.router, prefix="/system/notifications", tags=["通知配置"])
+protected_router.include_router(
+    notifications.router, prefix="/system/notifications", tags=["通知配置"]
+)
 protected_router.include_router(statistics.router, prefix="/statistics", tags=["统计报表"])
 protected_router.include_router(audits.router, prefix="/audits", tags=["审计日志"])
 protected_router.include_router(venvs.router, prefix="/venvs", tags=["虚拟环境"])

@@ -1,6 +1,7 @@
 """
 审计日志模型
 """
+
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Column, DateTime, String, Text
