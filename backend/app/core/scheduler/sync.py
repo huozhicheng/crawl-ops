@@ -3,6 +3,7 @@
 
 负责将用户定义的任务同步到调度器，包括 cron、interval、once、random 类型。
 """
+
 from datetime import datetime
 
 from loguru import logger
@@ -93,7 +94,8 @@ def _check_parallel_allowed(db, task) -> bool:
 
     if running_count >= max_instances:
         logger.warning(
-            f"任务 {task.id} 已有 {running_count} 个运行中的实例，" f"超过最大并行数 {max_instances}，跳过本次调度"
+            f"任务 {task.id} 已有 {running_count} 个运行中的实例，"
+            f"超过最大并行数 {max_instances}，跳过本次调度"
         )
         return False
 

@@ -3,6 +3,7 @@
 
 提供节点CRUD、心跳、注册、状态检测接口。
 """
+
 import secrets
 from typing import Optional
 

@@ -3,6 +3,7 @@ Redis 连接管理模块
 
 提供 Redis 连接池单例，避免重复创建连接。
 """
+
 import redis
 
 from app.core.config import settings

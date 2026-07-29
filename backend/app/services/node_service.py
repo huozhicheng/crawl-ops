@@ -3,6 +3,7 @@
 
 提供节点管理、心跳处理、状态监控功能。
 """
+
 import secrets
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
@@ -164,7 +165,9 @@ class NodeService:
         )
 
         db.commit()
-        logger.info(f"标记 {len(offline_nodes)} 个节点为离线，{len(failed_execution_ids)} 个任务为失败")
+        logger.info(
+            f"标记 {len(offline_nodes)} 个节点为离线，{len(failed_execution_ids)} 个任务为失败"
+        )
 
         # 发送停止信号
         if failed_execution_ids:

@@ -143,7 +143,9 @@ async def list_project_files(
 
 @router.get("/project/{project_id}/download")
 async def download_project_file(
-    project_id: int, path: str = Query(..., description="文件相对路径"), db: Session = Depends(get_db)
+    project_id: int,
+    path: str = Query(..., description="文件相对路径"),
+    db: Session = Depends(get_db),
 ):
     """下载项目中的单个文件"""
     project = project_service.get_by_id(db, project_id)
@@ -165,7 +167,9 @@ async def download_project_file(
 
 @router.get("/project/{project_id}/view")
 async def view_project_file(
-    project_id: int, path: str = Query(..., description="文件相对路径"), db: Session = Depends(get_db)
+    project_id: int,
+    path: str = Query(..., description="文件相对路径"),
+    db: Session = Depends(get_db),
 ):
     """预览项目文件内容（文本文件）"""
     project = project_service.get_by_id(db, project_id)
@@ -275,7 +279,9 @@ async def save_project_file(
 
 @router.delete("/project/{project_id}")
 async def delete_project_file(
-    project_id: int, path: str = Query(..., description="文件/目录相对路径"), db: Session = Depends(get_db)
+    project_id: int,
+    path: str = Query(..., description="文件/目录相对路径"),
+    db: Session = Depends(get_db),
 ):
     """删除项目文件或目录"""
     project = project_service.get_by_id(db, project_id)
@@ -310,7 +316,9 @@ async def delete_project_file(
 
 @router.get("/project/{project_id}/search")
 async def search_project_files(
-    project_id: int, keyword: str = Query(..., description="搜索关键词"), db: Session = Depends(get_db)
+    project_id: int,
+    keyword: str = Query(..., description="搜索关键词"),
+    db: Session = Depends(get_db),
 ):
     """搜索项目文件（按文件名）"""
     project = project_service.get_by_id(db, project_id)

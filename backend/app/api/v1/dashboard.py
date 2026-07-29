@@ -194,9 +194,11 @@ async def get_upcoming(limit: int = 5, db: Session = Depends(get_db)):
                 "task_id": task.id,
                 "task_name": task.name,
                 "schedule_type": task.schedule_type,
-                "cron": task.cron_expression
-                if task.schedule_type == "cron"
-                else f"{task.interval_seconds}s",
+                "cron": (
+                    task.cron_expression
+                    if task.schedule_type == "cron"
+                    else f"{task.interval_seconds}s"
+                ),
                 "next_run": task.scheduled_time,
             }
         )
