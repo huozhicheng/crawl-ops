@@ -11,10 +11,10 @@ RUN corepack enable && corepack prepare pnpm@8.14.0 --activate
 WORKDIR /app
 
 # 复制依赖文件
-COPY package.json ./
+COPY package.json pnpm-lock.yaml ./
 
-# 安装依赖（不使用frozen-lockfile，因为没有lock文件）
-RUN pnpm install
+# 严格按锁文件安装，确保镜像使用已验证的依赖版本
+RUN pnpm install --frozen-lockfile
 
 # 复制源码并构建
 COPY . .
