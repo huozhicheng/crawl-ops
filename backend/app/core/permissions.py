@@ -6,6 +6,7 @@
 - 支持角色检查装饰器
 - 支持API级别的权限控制
 """
+
 from enum import Enum
 from functools import wraps
 from typing import List, Optional, Set
@@ -188,7 +189,9 @@ def require_permission(permission: Permission):
 
             if current_user and db:
                 if not check_permission(current_user, permission.value, db):
-                    raise HTTPException(status_code=403, detail=f"权限不足: 需要 {permission.value}")
+                    raise HTTPException(
+                        status_code=403, detail=f"权限不足: 需要 {permission.value}"
+                    )
 
             return await func(*args, **kwargs)
 

@@ -8,6 +8,7 @@
 
 所有渠道均通过Webhook方式发送。
 """
+
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass

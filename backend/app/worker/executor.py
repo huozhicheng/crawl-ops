@@ -322,9 +322,9 @@ class TaskExecutor:
                 payload = {
                     "status": "success" if exit_code == 0 else "failed",
                     "exit_code": exit_code,
-                    "error_message": f"Process exited with code {exit_code}"
-                    if exit_code != 0
-                    else None,
+                    "error_message": (
+                        f"Process exited with code {exit_code}" if exit_code != 0 else None
+                    ),
                 }
             self._send_callback_with_retry(callback_url, payload)
 

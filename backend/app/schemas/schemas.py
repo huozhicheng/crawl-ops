@@ -112,7 +112,9 @@ class TaskBase(BaseModel):
     cron_expression: Optional[str] = None
     interval_seconds: Optional[int] = None
     scheduled_time: Optional[datetime] = None
-    random_start_hour: Optional[int] = Field(None, ge=0, le=22, description="随机调度开始小时 (0-22)")
+    random_start_hour: Optional[int] = Field(
+        None, ge=0, le=22, description="随机调度开始小时 (0-22)"
+    )
     random_end_hour: Optional[int] = Field(None, ge=1, le=23, description="随机调度结束小时 (1-23)")
     timeout_seconds: int = 3600
     retry_count: int = 0
