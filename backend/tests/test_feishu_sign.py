@@ -19,7 +19,6 @@ def calculate_sign(timestamp, secret):
 
 
 def test_feishu_signature_logic():
-    print("Starting corrected Feishu signature validation...")
     secret = "test-secret"
     timestamp = int(time.time())
 
@@ -30,10 +29,6 @@ def test_feishu_signature_logic():
     expected_sign = calculate_sign(timestamp, secret)
 
     assert sign == expected_sign
-    print("SUCCESS: Signature validation successful!")
-    print(f"Timestamp: {timestamp}")
-    print(f"Signature: {sign}")
-    print(f"Key used: {timestamp}\\n{secret}")
 
 
 if __name__ == "__main__":

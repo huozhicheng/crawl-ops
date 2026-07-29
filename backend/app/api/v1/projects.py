@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.auth import get_current_user
 from app.core.database import get_db
+from app.core.path_security import UnsafePathError, resolve_within_directory
 from app.models import User
 from app.schemas import ProjectCreate, ProjectListResponse, ProjectResponse, ProjectUpdate
 from app.services import project_service
@@ -13,6 +14,16 @@ from app.services.node_service import node_service
 
 router = APIRouter()
 worker_router = APIRouter()
+
+
+def get_project_path(project_code: str) -> str:
+    """返回受控项目目录，避免项目标识被作为任意路径使用。"""
+    from app.core.config import settings
+
+    try:
+        return str(resolve_within_directory(settings.PROJECTS_DIR, project_code, allow_root=False))
+    except UnsafePathError as exc:
+        raise HTTPException(status_code=500, detail="项目目录配置无效") from exc
 
 
 @router.get("", response_model=ProjectListResponse)
@@ -127,8 +138,6 @@ import tempfile
 
 from fastapi.responses import FileResponse
 
-from app.core.config import settings
-
 
 @worker_router.get("/code/{project_code}/download")
 async def download_project_code(
@@ -141,32 +150,33 @@ async def download_project_code(
     Worker 节点在执行 Upload 类型项目时，通过此接口下载项目代码 zip 包。
     Git 类型项目应该使用 git pull 同步，不需要调用此接口。
     """
-    if not node_service.get_by_token(db, x_node_token):
+    node = node_service.get_by_token(db, x_node_token)
+    if not node or node.deleted:
         raise HTTPException(status_code=401, detail="无效的节点令牌")
     project = project_service.get_by_code(db, project_code)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    project_path = os.path.join(settings.PROJECTS_DIR, project_code)
+    project_path = get_project_path(project.code)
     if not os.path.exists(project_path):
         raise HTTPException(status_code=404, detail="项目代码目录不存在")
 
     # 创建临时 zip 文件
     temp_dir = tempfile.mkdtemp()
-    zip_path = os.path.join(temp_dir, f"{project_code}.zip")
+    zip_path = str(resolve_within_directory(temp_dir, f"{project.code}.zip", allow_root=False))
 
     try:
         # 打包项目目录（排除常见的无用文件）
         shutil.make_archive(
             zip_path.replace(".zip", ""),
             "zip",
-            root_dir=settings.PROJECTS_DIR,
-            base_dir=project_code,
+            root_dir=os.path.dirname(project_path),
+            base_dir=os.path.basename(project_path),
         )
 
         return FileResponse(
             path=zip_path,
-            filename=f"{project_code}.zip",
+            filename=f"{project.code}.zip",
             media_type="application/zip",
             background=None,  # 防止文件在发送前被删除
         )
