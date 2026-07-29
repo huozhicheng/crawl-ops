@@ -20,8 +20,8 @@ def validate_path(project_path: str, relative_path: str) -> str:
     project_root = os.path.realpath(project_path)
     target_path = os.path.realpath(os.path.join(project_root, relative_path or ""))
 
-    # 使用 commonpath，而不是字符串前缀，避免 /projects/a 与 /projects/abc 混淆。
-    if os.path.commonpath([project_root, target_path]) != project_root:
+    # 必须在规范化后校验，并附加路径分隔符，避免 /projects/a 与 /projects/abc 混淆。
+    if target_path != project_root and not target_path.startswith(project_root + os.sep):
         raise HTTPException(status_code=400, detail="非法路径")
     return target_path
 
