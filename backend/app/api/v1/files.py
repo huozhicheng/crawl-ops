@@ -10,26 +10,18 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.path_security import UnsafePathError, resolve_within_directory
 from app.services.project_service import project_service
 
 router = APIRouter()
 
 
-def validate_path(project_path: str, relative_path: str) -> str:
-    """验证路径安全性，防止路径穿越攻击"""
-    try:
-        return str(resolve_within_directory(project_path, relative_path))
-    except UnsafePathError as exc:
-        raise HTTPException(status_code=400, detail="非法路径")
-
-
 def get_project_path(project_code: str) -> str:
     """返回受控项目目录，项目代码不能影响上级目录。"""
-    try:
-        return str(resolve_within_directory(settings.PROJECTS_DIR, project_code, allow_root=False))
-    except UnsafePathError as exc:
-        raise HTTPException(status_code=500, detail="项目目录配置无效") from exc
+    projects_root = os.path.realpath(settings.PROJECTS_DIR)
+    project_path = os.path.realpath(os.path.join(projects_root, project_code))
+    if not project_path.startswith(projects_root + os.sep):
+        raise HTTPException(status_code=500, detail="项目目录配置无效")
+    return project_path
 
 
 def validate_upload_filename(filename: Optional[str]) -> str:
@@ -46,12 +38,17 @@ def validate_upload_filename(filename: Optional[str]) -> str:
 
 def safe_extract_zip(zip_file: zipfile.ZipFile, destination: str) -> None:
     """逐项解压，并阻止 Zip Slip 写入目标目录之外。"""
+    destination_root = os.path.realpath(destination)
     for member in zip_file.infolist():
-        try:
-            resolve_within_directory(destination, member.filename)
-        except UnsafePathError as exc:
+        member_path = member.filename
+        if "\x00" in member_path or "\\" in member_path:
             raise HTTPException(status_code=400, detail="压缩包包含非法路径")
-        zip_file.extract(member, destination)
+
+        target_path = os.path.realpath(os.path.join(destination_root, member_path))
+        if not target_path.startswith(destination_root + os.sep):
+            raise HTTPException(status_code=400, detail="压缩包包含非法路径")
+
+        zip_file.extract(member, destination_root)
 
 
 @router.post("/upload/project/{project_id}")
@@ -85,8 +82,12 @@ async def upload_project_file(
         with zipfile.ZipFile(temp_zip, "r") as zip_ref:
             safe_extract_zip(zip_ref, project_path)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"文件处理失败: {str(e)}")
+    except HTTPException:
+        raise
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=400, detail="压缩包格式无效") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="文件处理失败") from exc
     finally:
         if os.path.exists(temp_zip):
             os.remove(temp_zip)
@@ -110,7 +111,16 @@ async def list_project_files(
         os.makedirs(project_path, exist_ok=True)
         return {"files": [], "path": path, "project_code": project.code}
 
-    target_path = validate_path(project_path, path)
+    if "\x00" in path or "\\" in path:
+        raise HTTPException(status_code=400, detail="非法路径")
+
+    project_root = os.path.realpath(project_path)
+    if path:
+        target_path = os.path.realpath(os.path.join(project_root, path))
+        if not target_path.startswith(project_root + os.sep):
+            raise HTTPException(status_code=400, detail="非法路径")
+    else:
+        target_path = project_root
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="路径不存在")
@@ -159,7 +169,13 @@ async def download_project_file(
         raise HTTPException(status_code=404, detail="项目不存在")
 
     project_path = get_project_path(project.code)
-    target_path = validate_path(project_path, path)
+    if "\x00" in path or "\\" in path:
+        raise HTTPException(status_code=400, detail="非法路径")
+
+    project_root = os.path.realpath(project_path)
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -183,7 +199,13 @@ async def view_project_file(
         raise HTTPException(status_code=404, detail="项目不存在")
 
     project_path = get_project_path(project.code)
-    target_path = validate_path(project_path, path)
+    if "\x00" in path or "\\" in path:
+        raise HTTPException(status_code=400, detail="非法路径")
+
+    project_root = os.path.realpath(project_path)
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -226,7 +248,16 @@ async def upload_single_file(
         raise HTTPException(status_code=404, detail="项目不存在")
 
     project_path = get_project_path(project.code)
-    target_dir = validate_path(project_path, path)
+    if "\x00" in path or "\\" in path:
+        raise HTTPException(status_code=400, detail="非法路径")
+
+    project_root = os.path.realpath(project_path)
+    if path:
+        target_dir = os.path.realpath(os.path.join(project_root, path))
+        if not target_dir.startswith(project_root + os.sep):
+            raise HTTPException(status_code=400, detail="非法路径")
+    else:
+        target_dir = project_root
 
     # 确保目标目录存在
     if not os.path.exists(target_dir):
@@ -236,7 +267,9 @@ async def upload_single_file(
         raise HTTPException(status_code=400, detail="目标路径不是目录")
 
     filename = validate_upload_filename(file.filename)
-    file_path = validate_path(project_path, os.path.join(path, filename))
+    file_path = os.path.realpath(os.path.join(target_dir, filename))
+    if not file_path.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     try:
         with open(file_path, "wb") as buffer:
@@ -267,10 +300,18 @@ async def save_project_file(
         raise HTTPException(status_code=404, detail="项目不存在")
 
     project_path = get_project_path(project.code)
-    target_path = validate_path(project_path, path)
+    if "\x00" in path or "\\" in path:
+        raise HTTPException(status_code=400, detail="非法路径")
+
+    project_root = os.path.realpath(project_path)
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     # 确保父目录存在
     parent_dir = os.path.dirname(target_path)
+    if parent_dir != project_root and not parent_dir.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
     if not os.path.exists(parent_dir):
         os.makedirs(parent_dir, exist_ok=True)
 
@@ -298,7 +339,13 @@ async def delete_project_file(
         raise HTTPException(status_code=400, detail="不能删除根目录")
 
     project_path = get_project_path(project.code)
-    target_path = validate_path(project_path, path)
+    if "\x00" in path or "\\" in path:
+        raise HTTPException(status_code=400, detail="非法路径")
+
+    project_root = os.path.realpath(project_path)
+    target_path = os.path.realpath(os.path.join(project_root, path))
+    if not target_path.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="非法路径")
 
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="文件或目录不存在")

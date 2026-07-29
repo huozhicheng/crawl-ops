@@ -5,8 +5,11 @@
 import os
 import shutil
 import tempfile
+import zipfile
 from uuid import uuid4
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -176,7 +179,7 @@ def test_search_files():
 
 
 def test_path_traversal_protection():
-    """测试路径穿越攻击防护"""
+    """所有文件操作都应拒绝跨出项目目录的路径。"""
     project_id, test_dir = setup_test_project()
 
     from app.core import config
@@ -185,10 +188,45 @@ def test_path_traversal_protection():
     config.settings.PROJECTS_DIR = test_dir
 
     try:
-        # 尝试访问上级目录
-        response = client.get(f"/api/v1/files/project/{project_id}/list", params={"path": "../"})
-        assert response.status_code == 400
-        assert "非法路径" in response.json()["detail"]
+        requests = [
+            ("get", f"/api/v1/files/project/{project_id}/list", {"params": {"path": "../"}}),
+            (
+                "get",
+                f"/api/v1/files/project/{project_id}/download",
+                {"params": {"path": "/tmp/outside.txt"}},
+            ),
+            (
+                "get",
+                f"/api/v1/files/project/{project_id}/view",
+                {"params": {"path": r"..\\outside.txt"}},
+            ),
+            (
+                "post",
+                f"/api/v1/files/project/{project_id}/upload-file",
+                {
+                    "params": {"path": "../"},
+                    "files": {"file": ("safe.py", b"print('safe')", "text/x-python")},
+                },
+            ),
+            (
+                "put",
+                f"/api/v1/files/project/{project_id}/save",
+                {"params": {"path": "../outside.txt"}, "json": {"content": "unsafe"}},
+            ),
+            (
+                "delete",
+                f"/api/v1/files/project/{project_id}",
+                {"params": {"path": "../outside.txt"}},
+            ),
+        ]
+        for method, url, request_kwargs in requests:
+            response = getattr(client, method)(url, **request_kwargs)
+            assert response.status_code == 400
+            assert "非法路径" in response.json()["detail"]
+
+        encoded_response = client.get(f"/api/v1/files/project/{project_id}/list?path=%2e%2e%2f")
+        assert encoded_response.status_code == 400
+        assert "非法路径" in encoded_response.json()["detail"]
 
     finally:
         config.settings.PROJECTS_DIR = original_dir
@@ -215,6 +253,55 @@ def test_upload_rejects_path_in_filename():
     finally:
         config.settings.PROJECTS_DIR = original_dir
         shutil.rmtree(test_dir)
+
+
+def test_view_rejects_a_symlink_that_escapes_the_project_directory():
+    """符号链接指向项目目录外时，不能通过预览接口读取。"""
+    project_id, test_dir = setup_test_project()
+
+    from app.core import config
+
+    original_dir = config.settings.PROJECTS_DIR
+    config.settings.PROJECTS_DIR = test_dir
+    project_dir = next(
+        os.path.join(test_dir, entry)
+        for entry in os.listdir(test_dir)
+        if entry.startswith("test_project_")
+    )
+    outside_path = os.path.join(test_dir, "outside.txt")
+    link_path = os.path.join(project_dir, "outside-link.txt")
+
+    try:
+        with open(outside_path, "w") as file:
+            file.write("不能读取的外部文件")
+        os.symlink(outside_path, link_path)
+
+        response = client.get(
+            f"/api/v1/files/project/{project_id}/view", params={"path": "outside-link.txt"}
+        )
+        assert response.status_code == 400
+        assert "非法路径" in response.json()["detail"]
+    finally:
+        config.settings.PROJECTS_DIR = original_dir
+        shutil.rmtree(test_dir)
+
+
+def test_zip_upload_rejects_members_that_escape_the_destination(tmp_path):
+    """压缩包成员也必须保持在解压目标目录内。"""
+    from app.api.v1.files import safe_extract_zip
+
+    archive_path = tmp_path / "unsafe.zip"
+    destination = tmp_path / "project"
+    destination.mkdir()
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("../outside.txt", "unsafe")
+
+    with zipfile.ZipFile(archive_path) as archive:
+        with pytest.raises(HTTPException) as exc_info:
+            safe_extract_zip(archive, str(destination))
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "压缩包包含非法路径"
 
 
 if __name__ == "__main__":
