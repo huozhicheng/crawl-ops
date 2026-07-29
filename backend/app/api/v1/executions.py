@@ -1,11 +1,12 @@
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from loguru import logger
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.path_security import resolve_within_directory
 from app.services.node_service import node_service
 from app.services.task_service import execution_service
 
@@ -113,13 +114,15 @@ async def get_execution_logs(
         offset: 从文件末尾偏移行数（用于加载更多历史日志）
         after_line: 增量获取，只返回该行号之后的新内容（用于 tail -f 效果）
     """
-    import os
+    item = execution_service.get_by_id(db, execution_id)
+    if not item:
+        return {"content": "", "total_lines": 0, "loaded_lines": 0, "has_more": False}
 
-    from app.core.config import settings
-
-    log_path = resolve_within_directory(
-        os.path.join(settings.LOGS_DIR, "executions"), f"{execution_id:d}.log", allow_root=False
-    )
+    log_root = os.path.realpath(os.path.join(settings.LOGS_DIR, "executions"))
+    log_filename = f"{item.id:d}.log"
+    log_path = os.path.realpath(os.path.join(log_root, log_filename))
+    if not log_path.startswith(log_root + os.sep):
+        raise HTTPException(status_code=500, detail="执行日志目录配置无效")
     if not os.path.exists(log_path):
         return {"content": "", "total_lines": 0, "loaded_lines": 0, "has_more": False}
 

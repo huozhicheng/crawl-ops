@@ -1,11 +1,14 @@
+import os
+import shutil
+import tempfile
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.v1.auth import get_current_user
 from app.core.database import get_db
-from app.core.path_security import UnsafePathError, resolve_within_directory
 from app.models import User
 from app.schemas import ProjectCreate, ProjectListResponse, ProjectResponse, ProjectUpdate
 from app.services import project_service
@@ -20,10 +23,11 @@ def get_project_path(project_code: str) -> str:
     """返回受控项目目录，避免项目标识被作为任意路径使用。"""
     from app.core.config import settings
 
-    try:
-        return str(resolve_within_directory(settings.PROJECTS_DIR, project_code, allow_root=False))
-    except UnsafePathError as exc:
-        raise HTTPException(status_code=500, detail="项目目录配置无效") from exc
+    projects_root = os.path.realpath(settings.PROJECTS_DIR)
+    project_path = os.path.realpath(os.path.join(projects_root, project_code))
+    if not project_path.startswith(projects_root + os.sep):
+        raise HTTPException(status_code=500, detail="项目目录配置无效")
+    return project_path
 
 
 @router.get("", response_model=ProjectListResponse)
@@ -132,13 +136,6 @@ async def sync_project(project_id: int, db: Session = Depends(get_db)):
     return {"message": "同步成功"}
 
 
-import os
-import shutil
-import tempfile
-
-from fastapi.responses import FileResponse
-
-
 @worker_router.get("/code/{project_code}/download")
 async def download_project_code(
     project_code: str,
@@ -163,7 +160,10 @@ async def download_project_code(
 
     # 创建临时 zip 文件
     temp_dir = tempfile.mkdtemp()
-    zip_path = str(resolve_within_directory(temp_dir, f"{project.code}.zip", allow_root=False))
+    temp_root = os.path.realpath(temp_dir)
+    zip_path = os.path.realpath(os.path.join(temp_root, f"{project.code}.zip"))
+    if not zip_path.startswith(temp_root + os.sep):
+        raise HTTPException(status_code=500, detail="临时文件目录配置无效")
 
     try:
         # 打包项目目录（排除常见的无用文件）
