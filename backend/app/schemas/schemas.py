@@ -1,7 +1,11 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, EmailStr, Field
+
+from app.core.security import validate_bcrypt_password
+
+BcryptPassword = Annotated[str, AfterValidator(validate_bcrypt_password)]
 
 
 # ===== 通用响应 =====
@@ -24,7 +28,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str
+    password: BcryptPassword
     role_ids: List[int] = []
 
 

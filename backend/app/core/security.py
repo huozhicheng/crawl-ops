@@ -2,12 +2,12 @@ import json
 import secrets
 from typing import Optional
 
+import bcrypt
 import redis
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+BCRYPT_MAX_PASSWORD_BYTES = 72
 
 # Token有效期（秒）
 ACCESS_TOKEN_EXPIRE = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
@@ -116,9 +116,24 @@ def refresh_access_token(refresh_token: str) -> Optional[tuple]:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(_password_bytes(plain_password), hashed_password.encode("utf-8"))
+    except ValueError:
+        # 无效哈希或超过 bcrypt 输入上限的密码均不能通过认证。
+        return False
 
 
 def get_password_hash(password: str) -> str:
     """生成密码哈希"""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
+
+
+def validate_bcrypt_password(password: str) -> str:
+    """校验密码可被 bcrypt 安全处理，并返回原始字符串供请求模型使用。"""
+    if len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+        raise ValueError(f"密码不能超过 {BCRYPT_MAX_PASSWORD_BYTES} 个 UTF-8 字节")
+    return password
+
+
+def _password_bytes(password: str) -> bytes:
+    return validate_bcrypt_password(password).encode("utf-8")
