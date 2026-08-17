@@ -58,6 +58,28 @@ class TestUserService:
         assert result is not None
 
 
+class TestPasswordHashing:
+    """验证升级后的 bcrypt 行为。"""
+
+    def test_hash_and_verify_password(self):
+        from app.core.security import get_password_hash, verify_password
+
+        password_hash = get_password_hash("test-password")
+
+        assert password_hash.startswith("$2")
+        assert verify_password("test-password", password_hash)
+        assert not verify_password("wrong-password", password_hash)
+
+    def test_rejects_passwords_longer_than_bcrypt_limit(self):
+        from app.core.security import get_password_hash, verify_password
+
+        password = "a" * 73
+
+        with pytest.raises(ValueError, match="72"):
+            get_password_hash(password)
+        assert not verify_password(password, "$2b$12$invalid")
+
+
 class TestProjectService:
     """项目服务测试"""
 

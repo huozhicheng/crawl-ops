@@ -1,17 +1,17 @@
 # 构建阶段
-FROM node:18-alpine AS builder
+FROM node:22.18.0-alpine AS builder
 
 # 设置时区
 RUN apk add --no-cache tzdata
 ENV TZ=Asia/Shanghai
 
-# 安装 pnpm
-RUN corepack enable && corepack prepare pnpm@8.14.0 --activate
+# 启用 Corepack；pnpm 版本由 package.json 中的 packageManager 字段固定。
+RUN corepack enable
 
 WORKDIR /app
 
 # 复制依赖文件
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # 严格按锁文件安装，确保镜像使用已验证的依赖版本
 RUN pnpm install --frozen-lockfile

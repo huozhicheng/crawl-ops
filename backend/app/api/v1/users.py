@@ -5,13 +5,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
+from app.schemas import BcryptPassword, UserCreate, UserListResponse, UserResponse, UserUpdate
 from app.services import user_service
 
 
 class ChangePasswordRequest(BaseModel):
     old_password: str
-    new_password: str
+    new_password: BcryptPassword
 
 
 router = APIRouter()

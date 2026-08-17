@@ -1,4 +1,5 @@
 from app.schemas.schemas import (  # 通用; 用户; 认证; 项目; 任务; 执行; 节点; 代理; 仪表盘
+    BcryptPassword,
     DashboardOverview,
     ExecutionListResponse,
     ExecutionResponse,
@@ -29,6 +30,7 @@ from app.schemas.schemas import (  # 通用; 用户; 认证; 项目; 任务; 执
 )
 
 __all__ = [
+    "BcryptPassword",
     "ResponseBase",
     "PaginatedResponse",
     "UserCreate",

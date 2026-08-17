@@ -79,7 +79,9 @@ class WorkerListener:
     """Worker 监听器"""
 
     def __init__(self):
-        self.redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        # redis-py 8 默认 socket_timeout 为 5 秒，会与下方 BLPOP 的 5 秒
+        # 阻塞超时竞争，导致空队列被误报为 socket 超时。
+        self.redis = redis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=None)
         self.queue_key = "crawlops:task:queue"
         self.running = True
         self.hostname = socket.gethostname()
