@@ -17,7 +17,7 @@ pymysql = "^1.2.0"
 alembic = "^1.19.1"
 redis = "^8.1.0"
 bcrypt = "^5.0.0"
-pydantic = {extras = ["email"], version = "^2.13.4"}
+pydantic = {extras = ["email"], version = "^2.13.5"}
 pydantic-settings = "^2.15.0"
 apscheduler = "^3.11.3"
 pytz = "^2026.3.post1"
