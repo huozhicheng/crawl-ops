@@ -10,7 +10,7 @@ dynamic = ["dependencies"]
 [tool.poetry.dependencies]
 python = "^3.10"
 fastapi = "^0.141.1"
-uvicorn = {extras = ["standard"], version = "^0.52.3"}
+uvicorn = {extras = ["standard"], version = "^0.53.0"}
 python-multipart = "^0.0.32"
 sqlalchemy = "^2.0.52"
 pymysql = "^1.2.0"
